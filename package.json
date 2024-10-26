@@ -10,10 +10,8 @@
   "dependencies": {
     "babel-eslint": "^10.1.0",
     "core-js": "^3.8.3",
-    "electron": "^33.0.2",
     "element-plus": "^2.8.6",
     "lodash": "^4.17.21",
-    "node-polyfill-webpack-plugin": "2.0.1",
     "uuid": "^10.0.0",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3"

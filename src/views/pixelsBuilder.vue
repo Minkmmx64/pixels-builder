@@ -1,9 +1,7 @@
 <template>
   <div class="box">
     <div class="left_panel">
-      <ledToolsPanel 
-        ref="ledToolsPanelRef" 
-        @setLedSetting="setLedSetting" 
+      <ledToolsPanel ref="ledToolsPanelRef" v-model:ledControllers="ledControllers" @setLedSetting="setLedSetting"
         @createLedLayout="createLedLayout" />
     </div>
     <div class="canvas_panel">
@@ -40,6 +38,8 @@ import { PixelsBuilder } from "@/components/pixelsBuilder/pixelsBuilder";
 import { computed, onMounted, reactive, Ref, ref, unref, useTemplateRef } from "vue";
 import ledToolsPanel from "./component/ledToolsPanel.vue";
 import { ILayoutSetting, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
+import { ILedControllers } from "./index.type";
+import { getRandomColor } from "@/components/pixelsBuilder/utils/utils";
 
 const pixels = useTemplateRef("pixels");
 const ledToolsPanelRef = useTemplateRef("ledToolsPanelRef");
@@ -77,24 +77,39 @@ const toggleMode = (e: ETools) => {
 const Area = ref({ w: 0, h: 0, left: 0, top: 0, show: false });
 const pixelsBuilder = ref<PixelsBuilder>();
 const ledLayout = ref<LedLayout>();
-const useConfig = computed(() => {
-  return reactive({ mode: unref(mode) });
-});
-const setLedSetting = (setting: ILayoutSetting) => {
-  ledLayout.value && ledLayout.value.setLedSetting(setting);
-}
+const useConfig = computed(() => reactive({ mode: unref(mode) }));
+const useLedLayoutConfig = computed(() => ledControllers.value);
+const setLedSetting = (setting: ILayoutSetting) => ledLayout.value && ledLayout.value.setLedSetting(setting);
+const ledControllers = ref<ILedControllers[]>([]);
 const createLedLayout = (param: { width: number, height: number }) => {
-  ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!);
+  ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!, useLedLayoutConfig);
   pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value });
   ledToolsPanelRef.value?.clearLedSelected();
   ledLayout.value.on("LedSelected", ({ no, size }) => {
     ledToolsPanelRef.value?.setLedSelected(no, size);
   });
 }
+
+const initLedController = (leds: number, star: number) => {
+  if (!leds) return;
+  requestAnimationFrame(() => {
+    let n = Math.min(leds, 10);
+    let ret = [];
+    for (let i = star; i < star + n; i++) {
+      const color = getRandomColor();
+      const pixels = 0;
+      const fenController = i + 1;
+      const no = i + 1;
+      ret.push({ color, pixels, fenController, no });
+    }
+    ledControllers.value.push(...ret);
+    initLedController(leds - n, star + n);
+  });
+}
 onMounted(() => {
+  initLedController(100, 0);
   const canvas = unref(pixels);
   if (canvas) {
-    canvas.style.cursor
     pixelsBuilder.value = new PixelsBuilder(canvas, useConfig);
     info.value.backGround = pixelsBuilder.value.BasicAttribute.BACKGROUND;
     pixelsBuilder.value.on("ToggleCursor", ({ cursor: _cursor }) => cursor.value = _cursor);

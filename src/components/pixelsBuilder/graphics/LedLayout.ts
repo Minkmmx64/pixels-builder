@@ -5,6 +5,8 @@ import { IGraphic } from "./graphics";
 import { Led } from "./led/led";
 import { ELineAction, ERelaPosition } from "../enum";
 import { Listener } from "../pixelsListener";
+import { ILedControllers } from "@/views/index.type";
+import { ComputedRef, Ref, unref } from "vue";
 
 /**
  * 绘制led 面板
@@ -13,7 +15,7 @@ import { Listener } from "../pixelsListener";
 export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
 
   //单位 画布像素
-  constructor(public width: number, public height: number, public pixelsBuilder: PixelsBuilder) {
+  constructor(public width: number, public height: number, public pixelsBuilder: PixelsBuilder, public LedLayoutConfigRef: ComputedRef<ILedControllers[]>) {
     super();
     const leftTop = { x: 0, y: 0 };
     const rightBottom = { x: pixelsBuilder.canvas.width, y: pixelsBuilder.canvas.height };
@@ -22,6 +24,7 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
       y: (leftTop.y + rightBottom.y) / 2
     };
     this.beginPoint = pixelsBuilder.realPoint2GridAlignCanvasPoint(ledPoint);
+
   }
 
   //led 面板左上角画布坐标
@@ -33,7 +36,7 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
   //判断该坐标是否已经有led
   ledCoordinate: Set<string> = new Set();
   //当前layout配置信息
-  ledLayoutSetting !: ILayoutSetting | undefined;
+  ledLayoutSetting !: ILayoutSetting;
   //全局Layout信息
   globalConfig = {
     COVERABLE: false,  //是否可以覆盖在点上
@@ -52,7 +55,6 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     ctx.closePath();
     // 遍历所有led集合，绘制
     for (const [no, nodes] of this.ledCollection) {
-      console.log(nodes);
       if (nodes)
         this.drawLinkedLeds(nodes.h);
     }
@@ -66,40 +68,88 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     // 从lt -> rb 绘制led [sx,sy] -> (sx,sy)
     if (start.x < end.x && start.y < end.y) {
       if (this.ledLayoutSetting) {
-        console.log("限制:", this.ledLayoutSetting.thresholdPoints);
         let links = this.getPointLists(start, end, this.ledLayoutSetting.lineAction, pos);
         //过滤重复的
         if (!this.globalConfig.COVERABLE) {
           links = links.filter(({ x, y }) => !this.ledCoordinate.has(this.getPointHash(x, y)));
         }
-        let doubleLinkedNode = this.ledCollection.get(this.ledLayoutSetting.ledSetting.no!);
-        let head!: DoubleLinkedList<Led>, tail!: DoubleLinkedList<Led>;
-        if (doubleLinkedNode) head = doubleLinkedNode.h, tail = doubleLinkedNode.t;
-        for (const link of links) {
-          this.ledCoordinate.add(this.getPointHash(link.x, link.y));
-          let led!: Led;
-          if (!head && !tail) {
-            led = new Led(link, this.ledLayoutSetting!.ledSetting, 1, this.pixelsBuilder);
-            const node = new DoubleLinkedList(led);
-            head = tail = node;
-          } else {
-            const no = tail.data.no;
-            led = new Led(link, this.ledLayoutSetting!.ledSetting, no + 1, this.pixelsBuilder);
-            const node = new DoubleLinkedList(led);
-            tail.next = node;
-            node.pre = tail;
-            tail = tail.next;
-          }
-        }
-        this.ledCollection.set(this.ledLayoutSetting.ledSetting.no!, { h: head, t: tail, nodeSize: links.length + (doubleLinkedNode?.nodeSize ?? 0) });
-        this.dispatch("LedSelected", null, { no: this.ledLayoutSetting.ledSetting.no!, size: links.length });
-        this.pixelsBuilder.reloadCanvas();
+        this.getLedLinksLists(links);
       }
     }
   }
 
+  getLedLinksLists(links: Point[]) {
+    let doubleLinkedNode = this.ledCollection.get(this.ledLayoutSetting.ledSetting.no!);
+    let head!: DoubleLinkedList<Led>, tail!: DoubleLinkedList<Led>;
+    if (doubleLinkedNode) head = doubleLinkedNode.h, tail = doubleLinkedNode.t;
+    let ledNodeSize = doubleLinkedNode?.nodeSize ?? 0;
+    for (const link of links) {
+      this.ledCoordinate.add(this.getPointHash(link.x, link.y));
+      let led!: Led;
+      if (!head && !tail) {
+        led = new Led(link, this.ledLayoutSetting.ledSetting, 1, this.pixelsBuilder);
+        const node = new DoubleLinkedList(led);
+        head = tail = node;
+        ledNodeSize++;
+      } else {
+        //判断当前有没有超出阈值
+        if (ledNodeSize + 1 > this.ledLayoutSetting.thresholdPoints) {
+          this.ledCollection.set(this.ledLayoutSetting.ledSetting.no!, { h: head, t: tail, nodeSize: ledNodeSize });
+          //寻找下一个配置
+          this.dispatch("LedSelected", null, { no: this.ledLayoutSetting.ledSetting.no!, size: ledNodeSize });
+          const ledConfig = this.loadNextLedLayoutConfig();
+          if (ledConfig) {
+            this.ledLayoutSetting.ledSetting = { color: ledConfig.color, no: ledConfig.no }
+            ledNodeSize = 0;
+            doubleLinkedNode = this.ledCollection.get(this.ledLayoutSetting.ledSetting.no!);
+            if (doubleLinkedNode) {
+              head = doubleLinkedNode.h, tail = doubleLinkedNode.t;
+              const no = tail.data.no;
+              led = new Led(link, this.ledLayoutSetting.ledSetting, no + 1, this.pixelsBuilder);
+              const node = new DoubleLinkedList(led);
+              tail.next = node;
+              node.pre = tail;
+              tail = tail.next;
+              ledNodeSize = doubleLinkedNode.nodeSize + 1;
+            }
+            else {
+              led = new Led(link, this.ledLayoutSetting.ledSetting, 1, this.pixelsBuilder);
+              const node = new DoubleLinkedList(led);
+              head = tail = node;
+              ledNodeSize++;
+            }
+          }
+        } else {
+          ledNodeSize++;
+          const no = tail.data.no;
+          led = new Led(link, this.ledLayoutSetting.ledSetting, no + 1, this.pixelsBuilder);
+          const node = new DoubleLinkedList(led);
+          tail.next = node;
+          node.pre = tail;
+          tail = tail.next;
+        }
+      }
+    }
+    if (links.length) {
+      this.ledCollection.set(this.ledLayoutSetting.ledSetting.no!, { h: head, t: tail, nodeSize: ledNodeSize });
+      this.dispatch("LedSelected", null, { no: this.ledLayoutSetting.ledSetting.no!, size: ledNodeSize });
+      this.pixelsBuilder.reloadCanvas();
+    }
+  }
+
+  loadNextLedLayoutConfig() {
+    const ledControllers = unref(this.LedLayoutConfigRef);
+    for (const led of ledControllers) {
+      if (led.pixels < this.ledLayoutSetting.thresholdPoints) {
+        console.log(led);
+        return led;
+      }
+    }
+    return null;
+  }
+
   setLedSetting(setting?: ILayoutSetting) {
-    this.ledLayoutSetting = setting;
+    this.ledLayoutSetting = setting!;
   }
 
   getPointHash(x: number, y: number) {

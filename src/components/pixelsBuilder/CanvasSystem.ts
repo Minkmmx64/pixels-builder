@@ -111,7 +111,6 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     //上一次鼠标距离
     const screenPoint: IRealisticPoint = { x: 0, y: 0 };
     const canvasMouseDownFn = (e: MouseEvent) => {
-
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRABBING });
       }

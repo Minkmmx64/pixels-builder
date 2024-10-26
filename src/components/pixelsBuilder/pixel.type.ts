@@ -1,5 +1,6 @@
 import { ComputedRef, Reactive } from "vue";
 import { Cursor, ETools } from "./enum";
+import { ILedControllers } from "@/views/index.type";
 
 export type Value = any;
 

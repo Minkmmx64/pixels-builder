@@ -14,7 +14,7 @@
       </div>
       <div class="line-points">
         <span>线路限定点数:</span>
-        <input type="number" v-model="thresholdPoints" min="10" max="4096"/>
+        <input type="number" v-model="thresholdPoints" min="10" max="4096" />
       </div>
       <div class="led_table">
         <table style="width: 100%;">
@@ -67,8 +67,7 @@
 
 <script setup lang="ts">
 import { ELineAction } from '@/components/pixelsBuilder/enum';
-import { getRandomColor } from '@/components/pixelsBuilder/utils/utils';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ILedControllers, ILineAction } from "../index.type";
 import { ILayoutSetting } from '@/components/pixelsBuilder/graphics/LedLayout';
 
@@ -76,8 +75,8 @@ interface IEmit {
   (event: 'createLedLayout', param: { width: number, height: number }): void;
   (event: 'setLedSetting', param: ILayoutSetting): void;
 }
-const Emit = defineEmits<IEmit>();
 
+const Emit = defineEmits<IEmit>();
 
 const showDialogCreate = ref(false);
 const lineActionData = ref<ILineAction[]>([
@@ -93,34 +92,11 @@ const handleCreateLedLayout = () => {
   Emit("createLedLayout", { width: parseInt(ledLayoutSize.value.w), height: parseInt(ledLayoutSize.value.h) });
   showDialogCreate.value = false;
 }
-const setLedSelected = (no: number, size: number) => {
-  ledControllers.value[no - 1].pixels += size;
-}
-const initLedController = (leds: number, star: number) => {
-  if (!leds) return;
-  requestAnimationFrame(() => {
-    let n = Math.min(leds, 10);
-    let ret = [];
-    for (let i = star; i < star + n; i++) {
-      const color = getRandomColor();
-      const pixels = 0;
-      const fenController = i + 1;
-      const no = i + 1;
-      ret.push({ color, pixels, fenController, no });
-    }
-    ledControllers.value.push(...ret);
-    initLedController(leds - n, star + n);
-  })
-}
-
-const ledControllers = ref<ILedControllers[]>([]);
+const setLedSelected = (no: number, size: number) => ledControllers.value[no - 1].pixels = size;
 const selectLedController = ref<ILedControllers>();
-const handleSelectLedController = (led: ILedControllers) => {
-  selectLedController.value = led;
-}
-const clearLedSelected = () => {
-  ledControllers.value.forEach(v => v.pixels = 0);
-}
+const handleSelectLedController = (led: ILedControllers) => selectLedController.value = led;
+const clearLedSelected = () => ledControllers.value.forEach(v => v.pixels = 0);
+
 const ledLayoutSetting = computed<ILayoutSetting>(() => {
   return {
     lineAction: lineAction.value,
@@ -132,11 +108,9 @@ const ledLayoutSetting = computed<ILayoutSetting>(() => {
   }
 });
 
-watch(() => [ledLayoutSetting.value], () => {
-  Emit("setLedSetting", ledLayoutSetting.value);
-})
+watch(() => [ledLayoutSetting.value], () => Emit("setLedSetting", ledLayoutSetting.value));
 
-onMounted(() => { initLedController(100, 0) });
+const ledControllers = defineModel<ILedControllers[]>("ledControllers", { required: true });
 
 defineExpose({
   setLedSelected: setLedSelected,
