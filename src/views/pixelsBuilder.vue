@@ -1,0 +1,246 @@
+<template>
+  <div class="box">
+    <div class="left_panel">
+      <ledToolsPanel ref="ledToolsPanelRef" @setLedSetting="setLedSetting" @createLedLayout="createLedLayout" />
+
+    </div>
+    <div class="canvas_panel">
+      <canvas ref="pixels" :style="{
+        cursor: cursor,
+        width: '100%',
+        backgroundColor: info.backGround
+      }"></canvas>
+      <div class="canvas_tools">
+        <div @click="toggleMode(item.code)" :class="{
+          'tools__item': true,
+          'item__is--activity': mode == item.code
+        }" v-for="(item, index) in tools" :key="index">
+          <img :src="item.icon" :title="item.label">
+        </div>
+      </div>
+      <div v-show="Area.show" ref="area" id="area" :style="{
+        width: Area.w + 'px',
+        height: Area.h + 'px',
+        left: Area.left + 'px',
+        top: Area.top + 'px'
+      }"></div>
+      <div class="info">
+        <div class="translate">({{ info.translate.x }}, {{ info.translate.y }})</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { Cursor, ERelaPosition, ETools } from "@/components/pixelsBuilder/enum";
+import { ITools, Point } from "@/components/pixelsBuilder/pixel.type";
+import { PixelsBuilder } from "@/components/pixelsBuilder/pixelsBuilder";
+import { computed, onMounted, reactive, Ref, ref, unref, useTemplateRef } from "vue";
+import ledToolsPanel from "./component/ledToolsPanel.vue";
+import { ILayoutSetting, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
+
+const pixels = useTemplateRef("pixels");
+const ledToolsPanelRef = useTemplateRef("ledToolsPanelRef");
+
+const tools: Ref<ITools[]> = ref([
+  { label: "箭头", code: ETools.TOOLS_ARROW, icon: require("@/assets/arrow.png") },
+  { label: "移动", code: ETools.TOOLS_MOVE, icon: require("@/assets/move.png") },
+  { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
+  { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") }
+]);
+const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
+const cursor = ref<Cursor>(Cursor.DEFAULT);
+const info = ref({
+  translate: { x: 0, y: 0 },
+  backGround: "#ffffff"
+});
+const toggleMode = (e: ETools) => {
+  switch (e) {
+    case ETools.TOOLS_ARROW:
+      cursor.value = Cursor.DEFAULT;
+      mode.value = e;
+      break;
+    case ETools.TOOLS_MOVE:
+      cursor.value = Cursor.GRAB;
+      mode.value = e;
+      break;
+    case ETools.TOOLS_WITHDRAW:
+
+      break;
+    case ETools.TOOLS_RE_WITHDRAW:
+
+      break;
+  }
+}
+const Area = ref({ w: 0, h: 0, left: 0, top: 0, show: false });
+const pixelsBuilder = ref<PixelsBuilder>();
+const ledLayout = ref<LedLayout>();
+const useConfig = computed(() => {
+  return reactive({ mode: unref(mode) });
+});
+const setLedSetting = (setting: ILayoutSetting) => {
+  ledLayout.value && ledLayout.value.setLedSetting(setting);
+}
+const createLedLayout = (param: { width: number, height: number }) => {
+  ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!);
+  pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value });
+  ledToolsPanelRef.value?.clearLedSelected();
+  ledLayout.value.on("LedSelected", ({ no, size }) => {
+    ledToolsPanelRef.value?.setLedSelected(no, size);
+  });
+}
+onMounted(() => {
+  const canvas = unref(pixels);
+  if (canvas) {
+    canvas.style.cursor
+    pixelsBuilder.value = new PixelsBuilder(canvas, useConfig);
+    info.value.backGround = pixelsBuilder.value.BasicAttribute.BACKGROUND;
+    pixelsBuilder.value.on("ToggleCursor", ({ cursor: _cursor }) => cursor.value = _cursor);
+    pixelsBuilder.value.on("ToggleArea", ({ w, h, start, end }) => {
+      let st = pixelsBuilder.value?.mathUtils.pointRelaPos(start, end);
+      switch (st) {
+        case ERelaPosition.B_3_QUADRANT_A: {
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: end.x, top: end.y }
+          break;
+        }
+        case ERelaPosition.B_4_QUADRANT_A: {
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: end.x, top: start.y }
+          break;
+        }
+        case ERelaPosition.B_1_QUADRANT_A: {
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: start.x, top: end.y }
+          break;
+        }
+        case ERelaPosition.B_2_QUADRANT_A: {
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: start.x, top: start.y }
+          break;
+        }
+      }
+    });
+    pixelsBuilder.value.on("ToggleAreaClose", _ => {
+      Area.value.show = false;
+    });
+    pixelsBuilder.value.on("ToggleMove", translate => {
+      info.value.translate = {
+        x: Math.round(translate.x),
+        y: Math.round(translate.y)
+      };
+    });
+    pixelsBuilder.value.on("ToggleAreaEnd", ({ start, end }) => {
+      let st = pixelsBuilder.value!.mathUtils.pointRelaPos(start, end);
+      let areaBegin !: Point, areaEnd !: Point;
+      switch (st) {
+        case ERelaPosition.B_3_QUADRANT_A: {
+          // >>
+          areaBegin = { x: end.x, y: end.y }, areaEnd = { x: start.x, y: start.y }
+          break;
+        }
+        case ERelaPosition.B_4_QUADRANT_A: {
+          // ><
+          areaBegin = { x: end.x, y: start.y }, areaEnd = { x: start.x, y: end.y };
+          break;
+        }
+        case ERelaPosition.B_1_QUADRANT_A: {
+          // <>
+          areaBegin = { x: start.x, y: end.y }, areaEnd = { x: end.x, y: start.y };
+          break;
+        }
+        case ERelaPosition.B_2_QUADRANT_A: {
+          // <<
+          areaBegin = start, areaEnd = end;
+          break;
+        }
+      }
+      const sx = Math.round(areaBegin.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), sy = Math.round(areaBegin.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
+      const ex = Math.round(areaEnd.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), ey = Math.round(areaEnd.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
+      ledLayout.value?.detectAreaIntersection({ x: sx, y: sy }, { x: ex, y: ey }, st);
+    })
+  }
+})
+</script>
+
+<style scoped lang="less">
+.box {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+
+  .left_panel {
+    height: 100vh;
+    width: 200px;
+    border-right: 2px solid #007aff;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .canvas_panel {
+    position: relative;
+    width: 100%;
+  }
+
+  #area {
+    position: absolute;
+    border: 1px solid #007aff;
+    background-color: #007aff10;
+    z-index: 999;
+  }
+
+  .info {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    font-size: 12px;
+  }
+
+  .canvas_tools {
+    user-select: none;
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    left: 50%;
+    top: 20px;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 40px;
+    border-radius: 60px;
+    z-index: 1000;
+    box-shadow: 2px 2px 2px 2px rgba(200, 200, 200, 0.6),
+      -2px 2px 2px 2px rgba(200, 200, 200, 0.6),
+      2px -2px 2px 2px rgba(200, 200, 200, 0.6),
+      -2px -2px 2px 2px rgba(200, 200, 200, 0.6);
+    background-color: #fff;
+    padding: 5px 10px;
+    box-sizing: border-box;
+
+    .tools__item {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: 100ms all ease;
+      border-radius: 5px;
+
+      img {
+        aspect-ratio: 1/ 1;
+        width: 20px;
+      }
+
+      &:hover {
+        background-color: #007aff10;
+      }
+    }
+
+    .item__is--activity {
+      background-color: #007aff10;
+    }
+  }
+}
+</style>

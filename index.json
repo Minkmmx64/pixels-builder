@@ -1,0 +1,19 @@
+{
+  "name": "light",
+  "ports": 1,
+  "linestyle": 0,
+  "width": 20,
+  "height": 20,
+  "lines": [
+    {
+      "lednum": 400,
+      "bulbs": []
+    }
+  ],
+  "type": "dn",
+  "lednum": 400,
+  "description": "light",
+  "pid": "31d2ba3e-034a-4c67-8609-78a8574ac04d",
+  "id": 1,
+  "uuid": "f5e27107-a738-4fe2-b9fb-c94cda87d336"
+}
