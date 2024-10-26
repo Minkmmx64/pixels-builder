@@ -67,16 +67,16 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     if (start.x < end.x && start.y < end.y) {
       if (this.ledLayoutSetting) {
         console.log("限制:", this.ledLayoutSetting.thresholdPoints);
-        const links = this.getPointLists(start, end, this.ledLayoutSetting.lineAction, pos);
+        let links = this.getPointLists(start, end, this.ledLayoutSetting.lineAction, pos);
+        //过滤重复的
+        if (!this.globalConfig.COVERABLE) {
+          links = links.filter(({ x, y }) => !this.ledCoordinate.has(this.getPointHash(x, y)));
+        }
         let doubleLinkedNode = this.ledCollection.get(this.ledLayoutSetting.ledSetting.no!);
         let head!: DoubleLinkedList<Led>, tail!: DoubleLinkedList<Led>;
         if (doubleLinkedNode) head = doubleLinkedNode.h, tail = doubleLinkedNode.t;
         for (const link of links) {
-          if (!this.globalConfig.COVERABLE) {
-            const id = this.getPointHash(link.x, link.y);
-            if (this.ledCoordinate.has(id)) continue;
-            else this.ledCoordinate.add(id);
-          }
+          this.ledCoordinate.add(this.getPointHash(link.x, link.y));
           let led!: Led;
           if (!head && !tail) {
             led = new Led(link, this.ledLayoutSetting!.ledSetting, 1, this.pixelsBuilder);
@@ -108,26 +108,19 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
 
   //根据lineAction和区域选择相对位置返回需要绘制的点的坐标
   getPointLists(start: Point, end: Point, lineAction: ELineAction, pos: ERelaPosition): Point[] {
-    //默认左上 -> 右下 -> 行优先
     const ret: Point[] = [];
-
-    //行优先
     if (ELineAction.SINGULAR_ROW_PRIOR === lineAction) {
       return this.pixelsBuilder.mathUtils.rowPriorMatrix(start, end, pos);
     }
-    //列优先 
     else if (ELineAction.SINGULAR_COLUMN_PRIOR === lineAction) {
       return this.pixelsBuilder.mathUtils.columnPriorMatrix(start, end, pos);
     }
-    //折返行优先
     else if (ELineAction.BACK_ROW_PRIOR === lineAction) {
       return this.pixelsBuilder.mathUtils.backRowPriorMatrix(start, end, pos);
     }
-    //折返列优先
     else if (ELineAction.BACK_COLUMN_PRIOR === lineAction) {
       return this.pixelsBuilder.mathUtils.backColumnPriorMatrix(start, end, pos);
     }
-
     return ret;
   }
 

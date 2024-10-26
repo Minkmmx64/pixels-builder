@@ -1,8 +1,10 @@
 <template>
   <div class="box">
     <div class="left_panel">
-      <ledToolsPanel ref="ledToolsPanelRef" @setLedSetting="setLedSetting" @createLedLayout="createLedLayout" />
-
+      <ledToolsPanel 
+        ref="ledToolsPanelRef" 
+        @setLedSetting="setLedSetting" 
+        @createLedLayout="createLedLayout" />
     </div>
     <div class="canvas_panel">
       <canvas ref="pixels" :style="{
