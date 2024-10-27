@@ -1,4 +1,4 @@
-import { isEqual } from "lodash";
+import { throttle } from "lodash";
 import { Cursor, ETools } from "./enum";
 import { canvasGraphics } from "./graphics/graphics";
 import { Mathematic } from "./math/Mathematic";
@@ -164,7 +164,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       this.canvas.removeEventListener("mousemove", canvasMouseMove);
     }
     const canvasMouseUp = canvasMouseUpFn.bind(this);
-    const canvasMouseMove = canvasMouseMoveFn.bind(this);
+    const canvasMouseMove = throttle(canvasMouseMoveFn.bind(this), 100);
     const canvasMouseDown = canvasMouseDownFn.bind(this);
     this.canvas.addEventListener("mousedown", canvasMouseDown);
     window.addEventListener("resize", this.reloadCanvas.bind(this));
@@ -185,7 +185,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
 
     })
   }
-  
+
   initGraphics() {
     this.graphics.forEach(g => {
       g.graphic.draw();

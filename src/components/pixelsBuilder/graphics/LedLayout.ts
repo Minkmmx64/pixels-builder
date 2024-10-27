@@ -56,7 +56,7 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     // 遍历所有led集合，绘制
     for (const [no, nodes] of this.ledCollection) {
       if (nodes)
-        this.drawLinkedLeds(nodes.h);
+        requestAnimationFrame(() => this.drawLinkedLeds(nodes.h))
     }
   }
 
