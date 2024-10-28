@@ -16,6 +16,10 @@
         <span>线路限定点数:</span>
         <input type="number" v-model="thresholdPoints" min="10" max="4096" />
       </div>
+      <div class="line-points">
+        <span>点重叠:</span>
+        <input type="checkbox" v-model="overlap" />
+      </div>
       <div class="led_table">
         <table style="width: 100%;">
           <tr class="led_table_column">
@@ -78,6 +82,7 @@ interface IEmit {
 
 const Emit = defineEmits<IEmit>();
 
+const overlap = ref(false);
 const showDialogCreate = ref(false);
 const lineActionData = ref<ILineAction[]>([
   { label: "单向行优先", code: ELineAction.SINGULAR_ROW_PRIOR },
@@ -104,7 +109,8 @@ const ledLayoutSetting = computed<ILayoutSetting>(() => {
       color: selectLedController.value?.color,
       no: selectLedController.value?.no
     },
-    thresholdPoints: Math.max(10, Math.min(thresholdPoints.value, 4096))
+    thresholdPoints: Math.max(10, Math.min(thresholdPoints.value, 4096)),
+    overlap: overlap.value
   }
 });
 

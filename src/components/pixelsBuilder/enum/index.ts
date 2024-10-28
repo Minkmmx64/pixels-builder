@@ -11,6 +11,7 @@ export enum ETools {
   TOOLS_ARROW,      //箭头
   TOOLS_WITHDRAW,   //撤回
   TOOLS_RE_WITHDRAW,//取消撤回
+  TOOLS_DELETE_AREA,//删除区域
 }
 
 //接线方式

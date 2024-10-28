@@ -1,18 +1,18 @@
-import { DoubleLinkedList } from "@/components/dataStructure/DoubleLinkedList";
-import { ICanvasPoint, Point } from "../pixel.type";
+import { DoubleLinkedNode, DoubleLinkedLists } from "@/components/dataStructure/DoubleLinkedList";
+import { IAreaCHoose, ICanvasPoint, Point } from "../pixel.type";
 import { PixelsBuilder } from "../pixelsBuilder";
-import { IGraphic } from "./graphics";
+import { canvasGraphic } from "./graphics";
 import { Led } from "./led/led";
 import { ELineAction, ERelaPosition } from "../enum";
 import { Listener } from "../pixelsListener";
 import { ILedControllers } from "@/views/index.type";
-import { ComputedRef, Ref, unref } from "vue";
+import { ComputedRef, unref } from "vue";
 
 /**
  * 绘制led 面板
  * 每种型号led
- */
-export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
+*/
+export class LedLayout extends Listener<ILayoutListener> implements canvasGraphic {
 
   //单位 画布像素
   constructor(public width: number, public height: number, public pixelsBuilder: PixelsBuilder, public LedLayoutConfigRef: ComputedRef<ILedControllers[]>) {
@@ -24,22 +24,19 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
       y: (leftTop.y + rightBottom.y) / 2
     };
     this.beginPoint = pixelsBuilder.realPoint2GridAlignCanvasPoint(ledPoint);
-
   }
 
-  //led 面板左上角画布坐标
+
   beginPoint !: ICanvasPoint;
-  //led 面板右下角画布坐标
   endPoint !: ICanvasPoint;
-  //led集合，根据 no 进行分类，每个map记录一个双向链表的头、尾结点,便于后续删除，添加
-  ledCollection: Map<number, { h: DoubleLinkedList<Led>, t: DoubleLinkedList<Led>, nodeSize: number }> = new Map();
-  //判断该坐标是否已经有led
+  ledLinkedListMasterCollection: Map<number, DoubleLinkedLists<Led>> = new Map();
+  ledPointHashCollection: Map<string, DoubleLinkedNode<Led>[]> = new Map();
   ledCoordinate: Set<string> = new Set();
-  //当前layout配置信息
+
   ledLayoutSetting !: ILayoutSetting;
   //全局Layout信息
   globalConfig = {
-    COVERABLE: false,  //是否可以覆盖在点上
+    COVERABLE: true,  //是否可以覆盖在点上
   }
 
   draw() {
@@ -53,24 +50,21 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
       this.height * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE);
     ctx.stroke();
     ctx.closePath();
-    // 遍历所有led集合，绘制
-    for (const [no, nodes] of this.ledCollection) {
-      if (nodes)
-        requestAnimationFrame(() => this.drawLinkedLeds(nodes.h))
+    for (const [no, nodes] of this.ledLinkedListMasterCollection) {
+      if (nodes) {
+        requestAnimationFrame(() => this.drawLinkedLeds(nodes.head!))
+      }
     }
   }
 
-  //监测选择区域和ledLayout的交集
   detectAreaIntersection(areaStart: Point, areaEnd: Point, pos: ERelaPosition) {
     const layoutBegin = this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.beginPoint);
     const layoutEnd = { x: layoutBegin.x + this.width, y: layoutBegin.y + this.height };
     const { start, end } = this.pixelsBuilder.mathUtils.findVerticalIntersectionArea({ start: areaStart, end: areaEnd }, { start: layoutBegin, end: layoutEnd });
-    // 从lt -> rb 绘制led [sx,sy] -> (sx,sy)
     if (start.x < end.x && start.y < end.y) {
       if (this.ledLayoutSetting) {
         let links = this.getPointLists(start, end, this.ledLayoutSetting.lineAction, pos);
-        //过滤重复的
-        if (!this.globalConfig.COVERABLE) {
+        if (!this.ledLayoutSetting.overlap) {
           links = links.filter(({ x, y }) => !this.ledCoordinate.has(this.getPointHash(x, y)));
         }
         this.getLedLinksLists(links);
@@ -78,61 +72,102 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     }
   }
 
-  getLedLinksLists(links: Point[]) {
-    let doubleLinkedNode = this.ledCollection.get(this.ledLayoutSetting.ledSetting.no!);
-    let head!: DoubleLinkedList<Led>, tail!: DoubleLinkedList<Led>;
-    if (doubleLinkedNode) head = doubleLinkedNode.h, tail = doubleLinkedNode.t;
-    let ledNodeSize = doubleLinkedNode?.nodeSize ?? 0;
-    for (const link of links) {
-      this.ledCoordinate.add(this.getPointHash(link.x, link.y));
-      let led!: Led;
-      if (!head && !tail) {
-        led = new Led(link, this.ledLayoutSetting.ledSetting, 1, this.pixelsBuilder);
-        const node = new DoubleLinkedList(led);
-        head = tail = node;
-        ledNodeSize++;
-      } else {
-        //判断当前有没有超出阈值
-        if (ledNodeSize + 1 > this.ledLayoutSetting.thresholdPoints) {
-          this.ledCollection.set(this.ledLayoutSetting.ledSetting.no!, { h: head, t: tail, nodeSize: ledNodeSize });
-          //寻找下一个配置
-          this.dispatch("LedSelected", null, { no: this.ledLayoutSetting.ledSetting.no!, size: ledNodeSize });
-          const ledConfig = this.loadNextLedLayoutConfig();
-          if (ledConfig) {
-            this.ledLayoutSetting.ledSetting = { color: ledConfig.color, no: ledConfig.no }
-            ledNodeSize = 0;
-            doubleLinkedNode = this.ledCollection.get(this.ledLayoutSetting.ledSetting.no!);
-            if (doubleLinkedNode) {
-              head = doubleLinkedNode.h, tail = doubleLinkedNode.t;
-              const no = tail.data.no;
-              led = new Led(link, this.ledLayoutSetting.ledSetting, no + 1, this.pixelsBuilder);
-              const node = new DoubleLinkedList(led);
-              tail.next = node;
-              node.pre = tail;
-              tail = tail.next;
-              ledNodeSize = doubleLinkedNode.nodeSize + 1;
+  deleteAreaIntersection(areaStart: Point, areaEnd: Point, pos: ERelaPosition) {
+    const layoutBegin = this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.beginPoint);
+    const layoutEnd = { x: layoutBegin.x + this.width, y: layoutBegin.y + this.height };
+    const { start, end } = this.pixelsBuilder.mathUtils.findVerticalIntersectionArea({ start: areaStart, end: areaEnd }, { start: layoutBegin, end: layoutEnd });
+    if (start.x < end.x && start.y < end.y) {
+      if (this.ledLayoutSetting) {
+        let links = this.getPointLists(start, end, this.ledLayoutSetting.lineAction, pos);
+        links.forEach(link => {
+          const pointHashCode = this.getPointHash(link.x, link.y);
+          const nodes = this.ledPointHashCollection.get(pointHashCode) ?? [];
+          for (const node of nodes) {
+            const doubleLinkedList = this.ledLinkedListMasterCollection.get(node.data.controller)!;
+            if (node.next == null) {
+              if (doubleLinkedList.tail)
+                doubleLinkedList.tail = doubleLinkedList.tail.pre;
+              if (doubleLinkedList.tail)
+                doubleLinkedList.tail.next = null;
+              else doubleLinkedList.head = doubleLinkedList.tail = null;
+            } else if (node.pre == null) {
+              if (doubleLinkedList.head)
+                doubleLinkedList.head = doubleLinkedList.head.next;
+              if (doubleLinkedList.head)
+                doubleLinkedList.head.pre = null;
+              else doubleLinkedList.head = doubleLinkedList.tail = null;
+            } else {
+              node.pre.next = node.next;
+              node.next.pre = node.pre;
             }
-            else {
-              led = new Led(link, this.ledLayoutSetting.ledSetting, 1, this.pixelsBuilder);
-              const node = new DoubleLinkedList(led);
-              head = tail = node;
-              ledNodeSize++;
-            }
+            doubleLinkedList.size--;
+            this.dispatch("LedSelected", null, { no: node.data.controller, size: doubleLinkedList.size });
           }
-        } else {
-          ledNodeSize++;
-          const no = tail.data.no;
-          led = new Led(link, this.ledLayoutSetting.ledSetting, no + 1, this.pixelsBuilder);
-          const node = new DoubleLinkedList(led);
-          tail.next = node;
-          node.pre = tail;
-          tail = tail.next;
+          this.ledPointHashCollection.delete(pointHashCode);
+          this.ledCoordinate.delete(pointHashCode);
+        });
+        if (links.length) {
+          this.pixelsBuilder.reloadCanvas();
         }
       }
     }
+  }
+
+  getLedLinksLists(links: Point[]) {
+    const controller = this.ledLayoutSetting.ledSetting.no!
+    if (this.ledLinkedListMasterCollection.get(controller)) { }
+    else this.ledLinkedListMasterCollection.set(controller, new DoubleLinkedLists(this.ledLayoutSetting.ledSetting.no!));
+    let doubleLinkedLists = this.ledLinkedListMasterCollection.get(controller)!;
+    for (const link of links) {
+      const pointHashCode = this.getPointHash(link.x, link.y);
+      this.ledCoordinate.add(pointHashCode);
+      let led!: Led, node !: DoubleLinkedNode<Led>;
+      if (!doubleLinkedLists.size) {
+        led = new Led(link, this.ledLayoutSetting.ledSetting, 1, doubleLinkedLists.no, this.pixelsBuilder);
+        node = new DoubleLinkedNode(led);
+        doubleLinkedLists.head = doubleLinkedLists.tail = node;
+        doubleLinkedLists.size++;
+      } else {
+        //判断当前有没有超出阈值
+        if (doubleLinkedLists.size + 1 > this.ledLayoutSetting.thresholdPoints) {
+          this.dispatch("LedSelected", null, { no: doubleLinkedLists.no, size: doubleLinkedLists.size });
+          //寻找下一个配置
+          const ledConfig = this.loadNextLedLayoutConfig();
+          if (ledConfig) {
+            this.ledLayoutSetting.ledSetting = { color: ledConfig.color, no: ledConfig.no }
+            if (this.ledLinkedListMasterCollection.get(ledConfig.no)) { }
+            else this.ledLinkedListMasterCollection.set(ledConfig.no, new DoubleLinkedLists(ledConfig.no));
+            doubleLinkedLists = this.ledLinkedListMasterCollection.get(ledConfig.no)!;
+            if (doubleLinkedLists.size) {
+              const no = doubleLinkedLists.tail!.data.no;
+              led = new Led(link, this.ledLayoutSetting.ledSetting, no + 1, doubleLinkedLists.no, this.pixelsBuilder);
+              node = new DoubleLinkedNode(led);
+              doubleLinkedLists.tail!.next = node;
+              node.pre = doubleLinkedLists.tail;
+              doubleLinkedLists.tail = doubleLinkedLists.tail!.next;
+              doubleLinkedLists.size++;
+            }
+            else {
+              led = new Led(link, this.ledLayoutSetting.ledSetting, 1, doubleLinkedLists.no, this.pixelsBuilder);
+              node = new DoubleLinkedNode(led);
+              doubleLinkedLists.head = doubleLinkedLists.tail = node;
+              doubleLinkedLists.size++;
+            }
+          }
+        } else {
+          doubleLinkedLists.size++;
+          const no = doubleLinkedLists.tail!.data.no;
+          led = new Led(link, this.ledLayoutSetting.ledSetting, no + 1, doubleLinkedLists.no, this.pixelsBuilder);
+          node = new DoubleLinkedNode(led);
+          doubleLinkedLists.tail!.next = node;
+          node.pre = doubleLinkedLists.tail;
+          doubleLinkedLists.tail = doubleLinkedLists.tail!.next;
+        }
+      }
+      this.ledPointHashCollection.set(pointHashCode, [...this.ledPointHashCollection.get(pointHashCode) ?? [], node]);
+    }
     if (links.length) {
-      this.ledCollection.set(this.ledLayoutSetting.ledSetting.no!, { h: head, t: tail, nodeSize: ledNodeSize });
-      this.dispatch("LedSelected", null, { no: this.ledLayoutSetting.ledSetting.no!, size: ledNodeSize });
+      this.dispatch("LedSelected", null, { no: this.ledLayoutSetting.ledSetting.no!, size: doubleLinkedLists.size });
       this.pixelsBuilder.reloadCanvas();
     }
   }
@@ -141,7 +176,6 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     const ledControllers = unref(this.LedLayoutConfigRef);
     for (const led of ledControllers) {
       if (led.pixels < this.ledLayoutSetting.thresholdPoints) {
-        console.log(led);
         return led;
       }
     }
@@ -174,34 +208,37 @@ export class LedLayout extends Listener<ILayoutListener> implements IGraphic {
     return ret;
   }
 
-  drawLinkedLeds(headLed: DoubleLinkedList<Led>) {
-    let p: DoubleLinkedList<Led> | null = headLed;
+  drawLinkedLeds(headLed: DoubleLinkedNode<Led>) {
+    let p: DoubleLinkedNode<Led> | null = headLed;
     let pre !: Point | null;
     const ctx = this.pixelsBuilder.ctx;
+    ctx.beginPath();
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    let no = 1;
     while (p) {
       const data = p.data;
-      if (p.pre) data.no = p.pre.data.no + 1;
+      data.no = no++;
       const center = data.center;
       if (pre) {
-        ctx.beginPath();
-        ctx.lineWidth = 5;
-        ctx.lineCap = "round";
         ctx.strokeStyle = data.ledSetting.color!;
         ctx.moveTo(pre.x, pre.y);
         ctx.lineTo(center.x, center.y);
         ctx.stroke();
-        ctx.closePath();
       }
       data.draw();
       pre = center;
       p = p.next;
     }
+    ctx.closePath();
   }
 
+  areaSelect({ areaStart, areaEnd, pos }: IAreaCHoose) {
+    this.detectAreaIntersection(areaStart, areaEnd, pos);
+  }
 
-  //保存当前快照
-  snapShot() {
-
+  areaDelete({ areaStart, areaEnd, pos }: IAreaCHoose) {
+    this.deleteAreaIntersection(areaStart, areaEnd, pos);
   }
 
 }
@@ -220,6 +257,8 @@ export interface ILayoutSetting {
   ledSetting: ILedSetting;
   //线路点数限制
   thresholdPoints: number;
+  //循序重叠
+  overlap: boolean;
 }
 
 export interface ILayoutListener {

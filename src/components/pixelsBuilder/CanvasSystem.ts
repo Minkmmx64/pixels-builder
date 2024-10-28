@@ -1,11 +1,13 @@
 import { throttle } from "lodash";
 import { Cursor, ETools } from "./enum";
-import { canvasGraphics } from "./graphics/graphics";
+import { canvasGraphics, IGraphic } from "./graphics/graphics";
 import { Mathematic } from "./math/Mathematic";
-import { ICanvasPoint, IPixelsEventListener, IRealisticPoint, Point, RICanvasConfig, Value } from "./pixel.type";
+import { ICanvasPoint, ICanvasSystemEvent, IPixelsEventListener, IRealisticPoint, Point, RICanvasConfig, Value } from "./pixel.type";
 
 import { Listener } from "./pixelsListener";
+import { firstLetterToLower } from "./utils/utils";
 
+// <typename T = 宿主容器事件 & graphic 图形派发事件 />
 export class CanvasSystem extends Listener<IPixelsEventListener> {
 
   //画布元素
@@ -30,7 +32,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     //网格宽度
     GRID_WIDTH: 1,
     MAX_SCALE_SIZE: 2,
-    MIN_SCALE_SIZE: 0.1,
+    MIN_SCALE_SIZE: 0.02,
     //区域选择与网格对齐
     AREA_GRID_ALIGN: true,
     BACKGROUND: "#000000"
@@ -46,7 +48,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   constructor(node: HTMLCanvasElement, public config: RICanvasConfig) {
     super();
     this.canvas = node;
-    this.ctx = node.getContext("2d")!;
+    this.ctx = node.getContext("2d", { alpha: false })!;
     this.mathUtils = new Mathematic();
     this.ctx.save();
     this.initGridSystem();
@@ -111,6 +113,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     //上一次鼠标距离
     const screenPoint: IRealisticPoint = { x: 0, y: 0 };
     const canvasMouseDownFn = (e: MouseEvent) => {
+      if (e.button !== 0) return;
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRABBING });
       }
@@ -124,6 +127,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       }
     }
     const canvasMouseMoveFn = (e: MouseEvent) => {
+      if (e.button !== 0) return;
       const { x, y } = this.getCanvasPoint(e);
       switch (this.config.value.mode) {
         case ETools.TOOLS_MOVE: {
@@ -142,12 +146,23 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           }
           const w = endPoint.x - screenPoint.x;
           const h = endPoint.y - screenPoint.y;
-          this.dispatch("ToggleArea", 5, { w, h, start: screenPoint, end: endPoint });
+          this.dispatch("ToggleArea", 5, { w, h, start: screenPoint, end: endPoint, bgColor: "#007aff10", borderColor: "#007aff" });
+          break;
+        }
+        case ETools.TOOLS_DELETE_AREA: {
+          let endPoint: IRealisticPoint = JSON.parse(JSON.stringify({ x, y }));
+          if (this.BasicAttribute.AREA_GRID_ALIGN) {
+            endPoint = this.realPoint2GridAlignCanvasPoint2RealPoint({ x, y });
+          }
+          const w = endPoint.x - screenPoint.x;
+          const h = endPoint.y - screenPoint.y;
+          this.dispatch("ToggleArea", 5, { w, h, start: screenPoint, end: endPoint, bgColor: "#ff000010", borderColor: "#ff0000" });
           break;
         }
       }
     }
     const canvasMouseUpFn = (e: MouseEvent) => {
+      if (e.button !== 0) return;
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRAB });
       }
@@ -164,7 +179,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       this.canvas.removeEventListener("mousemove", canvasMouseMove);
     }
     const canvasMouseUp = canvasMouseUpFn.bind(this);
-    const canvasMouseMove = throttle(canvasMouseMoveFn.bind(this), 100);
+    const canvasMouseMove = throttle(canvasMouseMoveFn.bind(this), 0);
     const canvasMouseDown = canvasMouseDownFn.bind(this);
     this.canvas.addEventListener("mousedown", canvasMouseDown);
     window.addEventListener("resize", this.reloadCanvas.bind(this));
@@ -174,14 +189,15 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       /**
        * 添加滚轮调整位移参数......
        */
-      if (direct > 0) this.transform.scale = Math.min(this.BasicAttribute.MAX_SCALE_SIZE, this.transform.scale + 0.05);
-      else this.transform.scale = Math.max(this.transform.scale - 0.05, this.BasicAttribute.MIN_SCALE_SIZE);
+      if (direct > 0) this.transform.scale = Math.min(this.BasicAttribute.MAX_SCALE_SIZE, this.transform.scale + 0.02);
+      else this.transform.scale = Math.max(this.transform.scale - 0.02, this.BasicAttribute.MIN_SCALE_SIZE);
       this.reloadCanvas();
     });
 
     this.canvas.addEventListener("contextmenu", e => {
       e.preventDefault();
       //获取屏幕坐标 -> 计算画布坐标 -> 派发右击事件给所有 graphic
+
 
     })
   }
@@ -259,5 +275,13 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     return this.mathUtils.scale(point, this.BasicAttribute.GRID_STEP_SIZE);
   }
 
+  dispatchGraphicEvent<T extends keyof ICanvasSystemEvent>(event: T, param: ICanvasSystemEvent[T]) {
+    let ev = event as string;
+    if (event.startsWith("canvasDispatch:")) ev = event.replaceAll("canvasDispatch:", "");
+    ev = firstLetterToLower(ev);
+    this.graphics.forEach(({ graphic }) => {
+      (graphic as any)[ev] ? ((graphic as any)[ev](param)) : null;
+    });
+  }
 
 }

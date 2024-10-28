@@ -22,7 +22,9 @@
         width: Area.w + 'px',
         height: Area.h + 'px',
         left: Area.left + 'px',
-        top: Area.top + 'px'
+        top: Area.top + 'px',
+        borderColor: Area.borderColor,
+        backgroundColor: Area.bgColor
       }"></div>
       <div class="info">
         <div class="translate">({{ info.translate.x }}, {{ info.translate.y }})</div>
@@ -48,7 +50,8 @@ const tools: Ref<ITools[]> = ref([
   { label: "箭头", code: ETools.TOOLS_ARROW, icon: require("@/assets/arrow.png") },
   { label: "移动", code: ETools.TOOLS_MOVE, icon: require("@/assets/move.png") },
   { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
-  { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") }
+  { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
+  { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") }
 ]);
 const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
 const cursor = ref<Cursor>(Cursor.DEFAULT);
@@ -72,9 +75,13 @@ const toggleMode = (e: ETools) => {
     case ETools.TOOLS_RE_WITHDRAW:
 
       break;
+    case ETools.TOOLS_DELETE_AREA:
+      mode.value = e;
+      cursor.value = Cursor.DEFAULT;
+      break;
   }
 }
-const Area = ref({ w: 0, h: 0, left: 0, top: 0, show: false });
+const Area = ref({ w: 0, h: 0, left: 0, top: 0, show: false, borderColor: "", bgColor: "" });
 const pixelsBuilder = ref<PixelsBuilder>();
 const ledLayout = ref<LedLayout>();
 const useConfig = computed(() => reactive({ mode: unref(mode) }));
@@ -107,29 +114,29 @@ const initLedController = (leds: number, star: number) => {
   });
 }
 onMounted(() => {
-  initLedController(100, 0);
+  initLedController(512, 0);
   const canvas = unref(pixels);
   if (canvas) {
     pixelsBuilder.value = new PixelsBuilder(canvas, useConfig);
     info.value.backGround = pixelsBuilder.value.BasicAttribute.BACKGROUND;
     pixelsBuilder.value.on("ToggleCursor", ({ cursor: _cursor }) => cursor.value = _cursor);
-    pixelsBuilder.value.on("ToggleArea", ({ w, h, start, end }) => {
+    pixelsBuilder.value.on("ToggleArea", ({ w, h, start, end, bgColor, borderColor }) => {
       let st = pixelsBuilder.value?.mathUtils.pointRelaPos(start, end);
       switch (st) {
         case ERelaPosition.B_3_QUADRANT_A: {
-          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: end.x, top: end.y }
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: end.x, top: end.y, bgColor, borderColor }
           break;
         }
         case ERelaPosition.B_4_QUADRANT_A: {
-          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: end.x, top: start.y }
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: end.x, top: start.y, bgColor, borderColor }
           break;
         }
         case ERelaPosition.B_1_QUADRANT_A: {
-          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: start.x, top: end.y }
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: start.x, top: end.y, bgColor, borderColor }
           break;
         }
         case ERelaPosition.B_2_QUADRANT_A: {
-          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: start.x, top: start.y }
+          Area.value = { show: true, w: Math.abs(w), h: Math.abs(h), left: start.x, top: start.y, bgColor, borderColor }
           break;
         }
       }
@@ -170,7 +177,12 @@ onMounted(() => {
       }
       const sx = Math.round(areaBegin.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), sy = Math.round(areaBegin.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
       const ex = Math.round(areaEnd.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), ey = Math.round(areaEnd.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
-      ledLayout.value?.detectAreaIntersection({ x: sx, y: sy }, { x: ex, y: ey }, st);
+      if (mode.value === ETools.TOOLS_ARROW) {
+        pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaSelect", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
+      }
+      else if (mode.value === ETools.TOOLS_DELETE_AREA) {
+        pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaDelete", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
+      }
     })
   }
 })
@@ -201,9 +213,9 @@ onMounted(() => {
 
   #area {
     position: absolute;
-    border: 1px solid #007aff;
-    background-color: #007aff10;
     z-index: 999;
+    border-style: solid;
+    border-width: 1px;
   }
 
   .info {

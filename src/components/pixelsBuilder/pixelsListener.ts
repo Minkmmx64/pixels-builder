@@ -2,6 +2,7 @@ import { isFunction, isNumber, } from "lodash";
 import { isStringNumber } from "./utils/utils";
 
 
+
 export class Listener<T extends any> {
 
   constructor() { }
