@@ -12,6 +12,7 @@ export enum ETools {
   TOOLS_WITHDRAW,   //撤回
   TOOLS_RE_WITHDRAW,//取消撤回
   TOOLS_DELETE_AREA,//删除区域
+  TOOLS_ADD_IMAGE,  //添加图片
 }
 
 //接线方式

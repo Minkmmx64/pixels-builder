@@ -15,7 +15,11 @@ import { ComputedRef, unref } from "vue";
 export class LedLayout extends Listener<ILayoutListener> implements canvasGraphic {
 
   //单位 画布像素
-  constructor(public width: number, public height: number, public pixelsBuilder: PixelsBuilder, public LedLayoutConfigRef: ComputedRef<ILedControllers[]>) {
+  constructor(
+    public width: number,
+    public height: number,
+    public pixelsBuilder: PixelsBuilder,
+    public LedLayoutConfigRef: ComputedRef<ILedControllers[]>) {
     super();
     const leftTop = { x: 0, y: 0 };
     const rightBottom = { x: pixelsBuilder.canvas.width, y: pixelsBuilder.canvas.height };
@@ -26,9 +30,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     this.beginPoint = pixelsBuilder.realPoint2GridAlignCanvasPoint(ledPoint);
   }
 
-
   beginPoint !: ICanvasPoint;
-  endPoint !: ICanvasPoint;
   ledLinkedListMasterCollection: Map<number, DoubleLinkedLists<Led>> = new Map();
   ledPointHashCollection: Map<string, DoubleLinkedNode<Led>[]> = new Map();
   ledCoordinate: Set<string> = new Set();
@@ -43,6 +45,8 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     const ctx = this.pixelsBuilder.ctx;
     ctx.beginPath();
     ctx.strokeStyle = "yellow";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
     ctx.rect(
       this.beginPoint.x,
       this.beginPoint.y,
@@ -52,7 +56,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     ctx.closePath();
     for (const [no, nodes] of this.ledLinkedListMasterCollection) {
       if (nodes) {
-        requestAnimationFrame(() => this.drawLinkedLeds(nodes.head!))
+        this.drawLinkedLeds(nodes.head!)
       }
     }
   }
@@ -213,20 +217,22 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     let pre !: Point | null;
     const ctx = this.pixelsBuilder.ctx;
     ctx.beginPath();
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 1;
     ctx.lineCap = "round";
     let no = 1;
     while (p) {
       const data = p.data;
       data.no = no++;
       const center = data.center;
-      if (pre) {
-        ctx.strokeStyle = data.ledSetting.color!;
-        ctx.moveTo(pre.x, pre.y);
-        ctx.lineTo(center.x, center.y);
-        ctx.stroke();
-      }
+      //if (pre) {
+        // ctx.strokeStyle = data.ledSetting.color!;
+        // ctx.moveTo(pre.x, pre.y);
+        // ctx.lineTo(center.x, center.y);
+        // ctx.stroke();
+      //}
+      ctx.beginPath();
       data.draw();
+      ctx.closePath();
       pre = center;
       p = p.next;
     }

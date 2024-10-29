@@ -21,8 +21,8 @@ export class Led implements IGraphic {
     const start = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(this.point);
     const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
     this.center = {
-      x: start.x + (grid / 2),
-      y: start.y + (grid / 2)
+      x: start.x + Math.floor((grid / 2)),
+      y: start.y + Math.floor((grid / 2))
     }
   }
 
@@ -30,31 +30,30 @@ export class Led implements IGraphic {
     const ctx = this.pixelsBuilder.ctx;
     const start = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(this.point);
     const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
-    const space = 10;
+    const space = 0.8;
     ctx.fillStyle = this.ledSetting.color!;
-    ctx.beginPath();
+
     if (this.no !== 1) {
       const center = {
-        x: start.x + (grid / 2),
-        y: start.y + (grid / 2)
+        x: start.x + Math.floor((grid / 2)),
+        y: start.y + Math.floor((grid / 2))
       }
-      ctx.arc(center.x, center.y, (grid / 2) - space, 0, Math.PI * 2);
+      ctx.arc(center.x, center.y, Math.floor((grid / 2.6)), 0, Math.PI * 2);
       ctx.fill();
     }
     else {
-      const rect = grid - space * 2;
-      ctx.fillRect(start.x + space, start.y + space, rect, rect);
-      ctx.closePath();
+      const rect = grid - 2 * grid * (1 - space);
+      ctx.fillRect(start.x + grid * (1 - space), start.y + grid * (1 - space), rect, rect);
     }
+
     //绘制文字
-    ctx.beginPath();
-    const text = this.no.toString() + (this.no === 1 ? '*' : '');
-    ctx.font = `${Math.floor(grid * 0.66)}px serif`;
+
+    const text = '' + this.no;
+    ctx.font = `${Math.floor(grid * 0.72)}px serif`;
     const { width, actualBoundingBoxAscent, actualBoundingBoxDescent } = ctx.measureText(text);
-    const height = actualBoundingBoxAscent + actualBoundingBoxDescent;
+    const height = Math.floor(actualBoundingBoxAscent + actualBoundingBoxDescent);
     ctx.fillStyle = "#000000";
-    ctx.fillText(text, this.center.x - width / 2, this.center.y + height / 2);
-    ctx.fill();
-    ctx.closePath();
+    ctx.fillText(text, Math.floor(this.center.x - width / 2), Math.floor(this.center.y + height / 2));
+
   }
 }

@@ -30,6 +30,20 @@
         <div class="translate">({{ info.translate.x }}, {{ info.translate.y }})</div>
       </div>
     </div>
+    <el-dialog v-model="showDialogCreateImage" title="插入图片" width="300" center>
+      <el-upload class="avatar-uploader" action="" :show-file-list="false" :before-upload="beforeAvatarUpload">
+        <img v-if="imageUrl" :src="imageUrl" class="avatar" />
+        <el-icon v-else class="avatar-uploader-icon">
+          <Plus />
+        </el-icon>
+      </el-upload>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showDialogCreateImage = false">取消</el-button>
+          <el-button type="primary" @click="handleCreateImage">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -42,6 +56,9 @@ import ledToolsPanel from "./component/ledToolsPanel.vue";
 import { ILayoutSetting, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
 import { ILedControllers } from "./index.type";
 import { getRandomColor } from "@/components/pixelsBuilder/utils/utils";
+import { Plus } from '@element-plus/icons-vue'
+import type { UploadProps, UploadRawFile } from 'element-plus'
+import { ImageGraphic } from "@/components/pixelsBuilder/graphics/Image/Image";
 
 const pixels = useTemplateRef("pixels");
 const ledToolsPanelRef = useTemplateRef("ledToolsPanelRef");
@@ -51,10 +68,13 @@ const tools: Ref<ITools[]> = ref([
   { label: "移动", code: ETools.TOOLS_MOVE, icon: require("@/assets/move.png") },
   { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
   { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
+  { label: "添加图片", code: ETools.TOOLS_ADD_IMAGE, icon: require("@/assets/image.png") },
   { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") }
 ]);
 const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
 const cursor = ref<Cursor>(Cursor.DEFAULT);
+const showDialogCreateImage = ref(false);
+const imageUrl = ref("");
 const info = ref({
   translate: { x: 0, y: 0 },
   backGround: "#ffffff"
@@ -74,6 +94,9 @@ const toggleMode = (e: ETools) => {
       break;
     case ETools.TOOLS_RE_WITHDRAW:
 
+      break;
+    case ETools.TOOLS_ADD_IMAGE:
+      showDialogCreateImage.value = true;
       break;
     case ETools.TOOLS_DELETE_AREA:
       mode.value = e;
@@ -96,7 +119,20 @@ const createLedLayout = (param: { width: number, height: number }) => {
     ledToolsPanelRef.value?.setLedSelected(no, size);
   });
 }
-
+const uploadFile = ref<UploadRawFile | null>(null);
+const beforeAvatarUpload: UploadProps['beforeUpload'] = (e) => {
+  imageUrl.value = URL.createObjectURL(e)
+  uploadFile.value = e;
+  return false;
+}
+const handleCreateImage = () => {
+  if (!ledLayout.value) return;
+  pixelsBuilder.value?.addGraphic(
+    { id: "auto", graphic: new ImageGraphic(JSON.parse(JSON.stringify(ledLayout.value?.beginPoint)), 5, 5, imageUrl.value, pixelsBuilder.value!) }
+  )
+  showDialogCreateImage.value = false;
+  imageUrl.value = "";
+}
 const initLedController = (leds: number, star: number) => {
   if (!leds) return;
   requestAnimationFrame(() => {
@@ -269,6 +305,24 @@ onMounted(() => {
 
     .item__is--activity {
       background-color: #007aff10;
+    }
+  }
+}
+
+.avatar-uploader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+
+  /deep/ .el-upload {
+    width: 150px;
+    height: 150px;
+    border: 1px dashed #007aff1a;
+    transition: 100ms all ease;
+
+    &:hover {
+      border-color: #007aff;
     }
   }
 }

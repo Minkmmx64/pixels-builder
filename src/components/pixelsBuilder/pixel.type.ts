@@ -39,6 +39,8 @@ export interface IGraphicPatch {
   areaSelect: IAreaCHoose;
   //graphic区域删除
   areaDelete: IAreaCHoose;
+  //mouseup
+  mouseup?: Point;
 }
 
 export type IFunctionInterFace<T> = {
