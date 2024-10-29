@@ -315,6 +315,11 @@ onMounted(() => {
   align-items: center;
   width: 100%;
 
+  .avatar {
+    width: 150px;
+    height: 150px;
+  }
+
   /deep/ .el-upload {
     width: 150px;
     height: 150px;

@@ -1,8 +1,12 @@
 //鼠标样式修改事件
 export enum Cursor {
-  GRAB = "grab",
-  GRABBING = "grabbing",
-  DEFAULT = "default"
+  GRAB = "grab",            //手
+  GRABBING = "grabbing",    //手-抓住
+  DEFAULT = "default",      //默认指针
+  NW_RESIZE = "nw-resize",  //左上resize
+  NE_RESIZE = "ne-resize",  //右上resize
+  E_RESIZE = "e-resize",    //左右
+  S_RESIZE = "s-resize",    //上下
 }
 
 //工具栏

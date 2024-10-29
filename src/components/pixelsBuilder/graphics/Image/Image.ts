@@ -1,6 +1,6 @@
 import { IAreaCHoose, ICanvasPoint, IRealisticPoint } from "../../pixel.type";
 import { PixelsBuilder } from "../../pixelsBuilder";
-import { canvasGraphic, IGraphic, IGraphicConfig } from "../graphics";
+import { canvasGraphic, GraphicRect, IGraphic, IGraphicConfig } from "../graphics";
 
 export class ImageGraphic implements canvasGraphic {
 
@@ -40,6 +40,13 @@ export class ImageGraphic implements canvasGraphic {
   areaDelete(param: IAreaCHoose) {
 
   };
+
+  setBoundaryRect(rect: GraphicRect) {
+    const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
+    this.begin = rect.begin;
+    this.width = Math.floor(rect.width / grid);
+    this.height = Math.floor(rect.height / grid);
+  }
 
   getBoundaryRect() {
     const begin: ICanvasPoint = this.pixelsBuilder.canvasPoint2GridAlign({ x: this.begin.x + this.offset.x, y: this.begin.y + this.offset.y });

@@ -1,11 +1,12 @@
 import { throttle } from "lodash";
 import { Cursor, ETools } from "./enum";
-import { canvasGraphic, GraphicRect, Graphics, IGraphicConfig } from "./graphics/graphics";
+import { canvasGraphic, GraphicRect, Graphics, GraphicTools, IGraphicConfig } from "./graphics/graphics";
 import { Mathematic } from "./math/Mathematic";
 import { ICanvasPoint, ICanvasSystemEvent, IPixelsEventListener, IRealisticPoint, Point, RICanvasConfig, Value } from "./pixel.type";
 
 import { Listener } from "./pixelsListener";
 import { firstLetterToLower, getRandomColor } from "./utils/utils";
+import { DragItem, EGraphicMoveTools } from "./graphics/dragItem";
 
 // <typename T = 宿主容器事件 & graphic 图形派发事件 />
 export class CanvasSystem extends Listener<IPixelsEventListener> {
@@ -40,12 +41,22 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   }
   //画布绘图元素集合
   graphics: Graphics[] = [];
+  //工具绘图元素
+  graphicsTools: Graphics<GraphicTools>[] = [];
   //撤回栈
   withDrawStack: ImageData[] = [];
   //取消撤回栈
   reWithDrawStack: ImageData[] = [];
   //当前正在操作的图形
-  graphic: canvasGraphic | null = null;
+  currentOptionGraphic: canvasGraphic | null = null;
+  //当前操作的工具图形
+  currentOptionGraphicTools: GraphicTools | null = null;
+  //鼠标起点，中点
+  mouseData = {
+    mouseDownPoint: { x: 0, y: 0 }
+  }
+  //当前是否正在拖动工具
+  currentIsMoveUtils = false;
 
   constructor(node: HTMLCanvasElement, public config: RICanvasConfig) {
     super();
@@ -117,38 +128,44 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     const preMousePoint = { x: 0, y: 0 } as Point;
     const canvasMouseDownFn = (e: MouseEvent) => {
       if (e.button !== 0) return;
+      this.canvas.addEventListener("mouseup", canvasMouseUp);
       //移动画布
+      const { x, y } = this.getCanvasPoint(e);
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
-        //寻找当前按下的点有没有可移动可缩放的图形
-        const { x, y } = this.getCanvasPoint(e);
         const graphic = this.findOptionGraphic(x, y);
         if (graphic) {
-          this.graphic = graphic;
+          this.currentOptionGraphic = graphic;
           this.dispatch("ToggleCursor", null, { cursor: Cursor.GRAB });
         } else {
-          this.graphic = null;
+          this.currentOptionGraphic = null;
         }
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRABBING });
       } else if (this.config.value.mode === ETools.TOOLS_ARROW) {
-        //判断点击的点是否有可伸缩的图形
-        const { x, y } = this.getCanvasPoint(e);
+        if (this.currentOptionGraphicTools) {
+          this.graphicToolsEventBus.graphicToolsMouseMove = this.graphicToolsMouseMove.bind(this);
+          this.mouseData.mouseDownPoint = { x, y };
+          this.canvas.addEventListener("mousemove", this.graphicToolsEventBus.graphicToolsMouseMove);
+          //当前正在移动
+          this.currentIsMoveUtils = true;
+          this.currentGraphicRect = this.currentOptionGraphic?.getBoundaryRect && this.currentOptionGraphic.getBoundaryRect()
+          return;
+        } else {
+          if (this.graphicToolsEventBus.graphicToolsMouseMove)
+            this.canvas.removeEventListener("mousemove", this.graphicToolsEventBus.graphicToolsMouseMove);
+          this.graphicToolsEventBus.graphicToolsMouseMove = null;
+        }
         const graphic = this.findOptionGraphic(x, y);
         if (graphic && graphic.getBoundaryRect) {
           const graphicRect = graphic.getBoundaryRect();
-          if (graphic.graphicConfig?.GRAPHIC_RESIZE) {
-            console.log("显示伸缩");
-          }
-          if (graphic.graphicConfig?.GRAPHIC_ROTATE) {
-            console.log("显示旋转");
-          }
           this.showGraphicUtils(graphicRect, graphic.graphicConfig);
+          this.currentOptionGraphic = graphic;
         } else {
-          console.log("隐藏");
+          this.currentOptionGraphic = null;
+          this.graphicsTools = [];
+          this.reloadCanvas();
         }
       }
-      this.canvas.addEventListener("mouseup", canvasMouseUp);
       this.canvas.addEventListener("mousemove", canvasMouseMove);
-      const { x, y } = this.getCanvasPoint(e);
       screenPoint.x = x, screenPoint.y = y;
       preMousePoint.x = x, preMousePoint.y = y;
       if (this.BasicAttribute.AREA_GRID_ALIGN) {
@@ -161,13 +178,16 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       const { x, y } = this.getCanvasPoint(e);
       switch (this.config.value.mode) {
         case ETools.TOOLS_MOVE: {
-          if (this.graphic) {
+          if (this.currentOptionGraphic) {
             let endPoint: IRealisticPoint = JSON.parse(JSON.stringify({ x, y }));
             if (this.BasicAttribute.AREA_GRID_ALIGN) {
               endPoint = this.realPoint2GridAlignCanvasPoint2RealPoint({ x, y });
             }
-            if (this.graphic.translate) {
-              this.graphic.translate(preMousePoint, endPoint);
+            if (this.currentOptionGraphic.translate) {
+              this.currentOptionGraphic.translate(preMousePoint, endPoint);
+              if (this.graphicsTools.length && this.currentOptionGraphic.getBoundaryRect) {
+                this.showGraphicUtils(this.currentOptionGraphic.getBoundaryRect(), this.currentOptionGraphic.graphicConfig);
+              }
               this.reloadCanvas();
             }
           } else {
@@ -181,6 +201,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           break;
         }
         case ETools.TOOLS_ARROW: {
+          //判断当前有没有触碰到graphicTools
           let endPoint: IRealisticPoint = JSON.parse(JSON.stringify({ x, y }));
           if (this.BasicAttribute.AREA_GRID_ALIGN) {
             endPoint = this.realPoint2GridAlignCanvasPoint2RealPoint({ x, y });
@@ -204,6 +225,13 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     }
     const canvasMouseUpFn = (e: MouseEvent) => {
       if (e.button !== 0) return;
+      if (this.currentIsMoveUtils) {
+        this.currentIsMoveUtils = false;
+        if (this.graphicToolsEventBus.graphicToolsMouseMove)
+          this.canvas.removeEventListener("mousemove", this.graphicToolsEventBus.graphicToolsMouseMove);
+        this.graphicToolsEventBus.graphicToolsMouseMove = null;
+        return;
+      }
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRAB });
       } else if (this.config.value.mode === ETools.TOOLS_ARROW) {
@@ -241,13 +269,55 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.canvas.addEventListener("contextmenu", e => {
       e.preventDefault();
       //获取屏幕坐标 -> 计算画布坐标 -> 派发右击事件给所有 graphic
+    });
+
+    //检测是否触碰到工具栏
+    this.canvas.addEventListener("mousemove", e => {
+      const { x, y } = this.getCanvasPoint(e);
+      if (this.config.value.mode === ETools.TOOLS_ARROW) {
+        const graphic = this.hasMoveToGraphicTools({ x, y });
+        if (graphic) {
+          switch (graphic.util) {
+            case EGraphicMoveTools.LEFT_TOP:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.NW_RESIZE });
+              break;
+            case EGraphicMoveTools.TOP:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.S_RESIZE });
+              break;
+            case EGraphicMoveTools.RIGHT_TOP:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.NE_RESIZE });
+              break;
+            case EGraphicMoveTools.RIGHT:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.E_RESIZE });
+              break;
+            case EGraphicMoveTools.RIGHT_BOTTOM:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.NW_RESIZE });
+              break;
+            case EGraphicMoveTools.BOTTOM:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.S_RESIZE });
+              break;
+            case EGraphicMoveTools.LEFT_BOTTOM:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.NE_RESIZE });
+              break;
+            case EGraphicMoveTools.LEFT:
+              this.dispatch("ToggleCursor", null, { cursor: Cursor.E_RESIZE });
+              break;
+          }
+          this.currentOptionGraphicTools = graphic;
+        } else {
+          if (this.currentIsMoveUtils) return;
+          this.currentOptionGraphicTools = null;
+          this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
+        }
+      }
     })
   }
 
   initGraphics() {
     requestAnimationFrame(() => {
       this.graphics.forEach(g => g.graphic.draw());
-    })
+      this.graphicsTools.forEach(g => g.graphic.draw());
+    });
   }
 
   clearCanvas() {
@@ -353,6 +423,129 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
 
   //显示图形编辑栏
   showGraphicUtils(rect: GraphicRect, options?: IGraphicConfig) {
-    console.log(rect, options);
+    // 左上 上 右上 右 右下 下 左下 左
+    const LEFT_TOP = JSON.parse(JSON.stringify(rect.begin)) as ICanvasPoint;
+    const TOP = { x: LEFT_TOP.x + rect.width / 2, y: LEFT_TOP.y };
+    const RIGHT_TOP = { x: LEFT_TOP.x + rect.width, y: LEFT_TOP.y };
+    const RIGHT = { x: LEFT_TOP.x + rect.width, y: LEFT_TOP.y + rect.height / 2 };
+    const RIGHT_BOTTOM = { x: LEFT_TOP.x + rect.width, y: LEFT_TOP.y + rect.height };
+    const BOTTOM = { x: LEFT_TOP.x + rect.width / 2, y: LEFT_TOP.y + rect.height };
+    const LEFT_BOTTOM = { x: LEFT_TOP.x, y: LEFT_TOP.y + rect.height };
+    const LEFT = { x: LEFT_TOP.x, y: LEFT_TOP.y + rect.height / 2 };
+    const point: ICanvasPoint[] = [
+      LEFT_TOP,
+      TOP,
+      RIGHT_TOP,
+      RIGHT,
+      RIGHT_BOTTOM,
+      BOTTOM,
+      LEFT_BOTTOM,
+      LEFT
+    ]
+    const ret: Graphics<GraphicTools>[] = [];
+    if (options?.GRAPHIC_RESIZE) {
+      for (let i = 0; i < 8; i++) {
+        let begin = point[i];
+        const dragItem = new DragItem(i, { x: begin.x, y: begin.y }, this);
+        ret.push({ id: `drag_${i}`, graphic: dragItem });
+      }
+    }
+    if (options?.GRAPHIC_ROTATE) {
+
+    }
+    this.graphicsTools = ret;
+    this.reloadCanvas();
+  }
+
+  //判断工具栏类型
+  hasMoveToGraphicTools(point: Point): GraphicTools | null {
+    const canvasPoint: ICanvasPoint = this.realPoint2CanvasPoint(point);
+    const g = this.graphicsTools.find(g => g.graphic.pointContainer && g.graphic.pointContainer(canvasPoint.x, canvasPoint.y));
+    if (g) return g.graphic;
+    return null;
+  }
+
+  //工具栏绑定事件
+  graphicToolsEventBus: Record<string, ((e: any) => void) | null> = {
+    graphicToolsMouseMove: null,
+  }
+  //当前需要操作的图形数据
+  currentGraphicRect: GraphicRect | undefined;
+
+  //工具栏事件
+  graphicToolsMouseMove(e: MouseEvent) {
+    if (!this.currentOptionGraphicTools) return;
+    if (this.currentOptionGraphic && this.currentGraphicRect) {
+      let { begin, width, height } = this.currentGraphicRect;
+      begin = JSON.parse(JSON.stringify(begin));
+      const util = this.currentOptionGraphicTools?.util;
+      const { x, y } = this.getCanvasPoint(e);
+      const E = this.realPoint2CanvasPoint({ x, y });
+      const S = this.realPoint2CanvasPoint(this.mouseData.mouseDownPoint);
+      const offset = { x: E.x - S.x, y: E.y - S.y };
+      let size !: ICanvasPoint;
+      switch (util) {
+        case EGraphicMoveTools.LEFT_TOP:
+          size = this.canvasPoint2GridAlign({
+            x: width - offset.x,
+            y: height - offset.y
+          });
+          begin.x += offset.x, begin.y += offset.y;
+          break;
+        case EGraphicMoveTools.TOP:
+          size = this.canvasPoint2GridAlign({
+            x: width,
+            y: height - offset.y
+          });
+          begin.y += offset.y;
+          break;
+        case EGraphicMoveTools.RIGHT_TOP:
+          size = this.canvasPoint2GridAlign({
+            x: width + offset.x,
+            y: height - offset.y
+          });
+          begin.y += offset.y;
+          break;
+        case EGraphicMoveTools.RIGHT:
+          size = this.canvasPoint2GridAlign({
+            x: width + offset.x,
+            y: height
+          })
+          break;
+        case EGraphicMoveTools.RIGHT_BOTTOM:
+          size = this.canvasPoint2GridAlign({
+            x: width + offset.x,
+            y: height + offset.y
+          })
+          break;
+        case EGraphicMoveTools.BOTTOM:
+          size = this.canvasPoint2GridAlign({
+            x: width,
+            y: height + offset.y
+          })
+          break;
+        case EGraphicMoveTools.LEFT_BOTTOM:
+          size = this.canvasPoint2GridAlign({
+            x: width - offset.x,
+            y: height + offset.y
+          });
+          begin.x += offset.x;
+          break;
+        case EGraphicMoveTools.LEFT:
+          size = this.canvasPoint2GridAlign({
+            x: width - offset.x,
+            y: height
+          });
+          begin.x += offset.x;
+          break;
+      }
+      if (!size) return;
+      if (this.currentOptionGraphic.setBoundaryRect) {
+        this.currentOptionGraphic.setBoundaryRect({ begin: this.canvasPoint2GridAlign(JSON.parse(JSON.stringify(begin))), width: size.x, height: size.y });
+        if (this.currentOptionGraphic.getBoundaryRect)
+          this.showGraphicUtils(this.currentOptionGraphic.getBoundaryRect(), this.currentOptionGraphic.graphicConfig);
+      }
+      this.reloadCanvas();
+    }
   }
 }
