@@ -1,6 +1,6 @@
 import { ICanvasPoint, Point } from "../../pixel.type";
 import { PixelsBuilder } from "../../pixelsBuilder";
-import { IGraphic } from "../graphics";
+import { canvasGraphic, IGraphic } from "../graphics";
 import { ILedSetting } from "../LedLayout";
 
 /**
@@ -49,11 +49,12 @@ export class Led implements IGraphic {
     //绘制文字
 
     const text = '' + this.no;
-    ctx.font = `${Math.floor(grid * 0.72)}px serif`;
+    ctx.font = `${Math.floor(grid * 0.66)}px serif`;
     const { width, actualBoundingBoxAscent, actualBoundingBoxDescent } = ctx.measureText(text);
     const height = Math.floor(actualBoundingBoxAscent + actualBoundingBoxDescent);
     ctx.fillStyle = "#000000";
     ctx.fillText(text, Math.floor(this.center.x - width / 2), Math.floor(this.center.y + height / 2));
 
   }
+
 }

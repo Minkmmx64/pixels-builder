@@ -7,16 +7,18 @@ export enum Cursor {
   NE_RESIZE = "ne-resize",  //右上resize
   E_RESIZE = "e-resize",    //左右
   S_RESIZE = "s-resize",    //上下
+  COPY = "copy",            //复制
 }
 
 //工具栏
 export enum ETools {
-  TOOLS_MOVE,       //拖动画布
-  TOOLS_ARROW,      //箭头
-  TOOLS_WITHDRAW,   //撤回
-  TOOLS_RE_WITHDRAW,//取消撤回
-  TOOLS_DELETE_AREA,//删除区域
-  TOOLS_ADD_IMAGE,  //添加图片
+  TOOLS_MOVE,         //拖动画布
+  TOOLS_ARROW,        //箭头
+  TOOLS_WITHDRAW,     //撤回
+  TOOLS_RE_WITHDRAW,  //取消撤回
+  TOOLS_DELETE_AREA,  //删除区域
+  TOOLS_ADD_IMAGE,    //添加图片
+  TOOLS_COPY_CIRCUIT, //复制线路
 }
 
 //接线方式

@@ -12,6 +12,7 @@ export interface IGraphic {
   translate?: (start: IRealisticPoint, end: IRealisticPoint) => void;             //图形位移
   getBoundaryRect?: () => GraphicRect,            //图形外接矩形
   setBoundaryRect?: (rect: GraphicRect) => void,   //设置图形外接矩形
+  clone?: () => canvasGraphic;
 }
 
 export interface IGraphicTools {
@@ -28,7 +29,9 @@ export interface IGraphicConfig {
 export interface Graphics<T = canvasGraphic> {
   id: string;
   graphic: T;
-  children?: Graphics[]
+  children?: Graphics[],
+  priority?: number;
+  isremoved?: boolean;
 }
 
 export type GraphicRect = { width: number, height: number, begin: ICanvasPoint };

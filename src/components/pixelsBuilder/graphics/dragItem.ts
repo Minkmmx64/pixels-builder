@@ -6,7 +6,7 @@ export class DragItem implements GraphicTools {
 
   util!: EGraphicMoveTools;
 
-  static Drag_SIZE = 4;
+  static Drag_SIZE = 10;
 
   constructor(
     util: EGraphicMoveTools,
@@ -23,12 +23,19 @@ export class DragItem implements GraphicTools {
   draw() {
     this.pixelsBuilder.ctx.beginPath();
     this.pixelsBuilder.ctx.fillStyle = "#007aff";
-    this.pixelsBuilder.ctx.fillRect(this.begin.x - DragItem.Drag_SIZE / 2, this.begin.y - DragItem.Drag_SIZE / 2, DragItem.Drag_SIZE, DragItem.Drag_SIZE);
+    this.pixelsBuilder.ctx.fillRect(
+      this.begin.x - (DragItem.Drag_SIZE / 2) / this.pixelsBuilder.transform.scale,
+      this.begin.y - DragItem.Drag_SIZE / 2 / this.pixelsBuilder.transform.scale,
+      DragItem.Drag_SIZE / this.pixelsBuilder.transform.scale,
+      DragItem.Drag_SIZE / this.pixelsBuilder.transform.scale);
     this.pixelsBuilder.ctx.closePath();
   }
 
   pointContainer(x: number, y: number): boolean {
-    return x >= (this.begin.x - DragItem.Drag_SIZE / 2) && y >= (this.begin.y - DragItem.Drag_SIZE / 2) && x <= (this.begin.x - DragItem.Drag_SIZE / 2 + DragItem.Drag_SIZE) && y <= (this.begin.y - DragItem.Drag_SIZE / 2 + DragItem.Drag_SIZE)
+    return x >= (this.begin.x - DragItem.Drag_SIZE / 2 / this.pixelsBuilder.transform.scale) &&
+      y >= (this.begin.y - DragItem.Drag_SIZE / 2 / this.pixelsBuilder.transform.scale) &&
+      x <= (this.begin.x - DragItem.Drag_SIZE / 2 / this.pixelsBuilder.transform.scale + DragItem.Drag_SIZE / this.pixelsBuilder.transform.scale) &&
+      y <= (this.begin.y - DragItem.Drag_SIZE / 2 / this.pixelsBuilder.transform.scale + DragItem.Drag_SIZE / this.pixelsBuilder.transform.scale)
   }
 }
 

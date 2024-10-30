@@ -5,8 +5,9 @@ import { Mathematic } from "./math/Mathematic";
 import { ICanvasPoint, ICanvasSystemEvent, IPixelsEventListener, IRealisticPoint, Point, RICanvasConfig, Value } from "./pixel.type";
 
 import { Listener } from "./pixelsListener";
-import { firstLetterToLower, getRandomColor } from "./utils/utils";
+import { firstLetterToLower } from "./utils/utils";
 import { DragItem, EGraphicMoveTools } from "./graphics/dragItem";
+import { PixelsBuilder } from "./pixelsBuilder";
 
 // <typename T = 宿主容器事件 & graphic 图形派发事件 />
 export class CanvasSystem extends Listener<IPixelsEventListener> {
@@ -53,7 +54,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   currentOptionGraphicTools: GraphicTools | null = null;
   //鼠标起点，中点
   mouseData = {
-    mouseDownPoint: { x: 0, y: 0 }
+    mouseDownPoint: { x: 0, y: 0 },
+    mouseMovePoint: { x: 0, y: 0 }
   }
   //当前是否正在拖动工具
   currentIsMoveUtils = false;
@@ -114,23 +116,46 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     }
   }
 
+  //移动整个画布
+
   initEventListener() {
     //区域选择mouseup事件
     const area = document.getElementById("area");
-    area?.addEventListener("mouseup", e => {
-      this.canvas.dispatchEvent(new MouseEvent("mouseup", e));
+    area?.addEventListener("mouseup", e => { this.canvas.dispatchEvent(new MouseEvent("mouseup", e)) });
+    area?.addEventListener("mousemove", e => { this.canvas.dispatchEvent(new MouseEvent("mousemove", e)) });
+    area?.addEventListener("click", e => {
+      if (this.config.value.mode === ETools.TOOLS_COPY_CIRCUIT) {
+        this.dispatch("ToggleAreaClose", null, null);
+        this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
+        const point = this.realPoint2GridAlignCanvasFloorPoint(this.getCanvasPoint(e));
+        const XY = {
+          x: point.x / this.BasicAttribute.GRID_STEP_SIZE,
+          y: point.y / this.BasicAttribute.GRID_STEP_SIZE
+        }
+        this.dispatchGraphicEvent("canvasDispatch:OnCurcuitCopy", XY);
+      }
     });
-    area?.addEventListener("mousemove", e => {
-      this.canvas.dispatchEvent(new MouseEvent("mousemove", e));
-    });
-    //上一次鼠标距离
-    const screenPoint: IRealisticPoint = { x: 0, y: 0 };
+    //上一次鼠标实际距离
     const preMousePoint = { x: 0, y: 0 } as Point;
     const canvasMouseDownFn = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      this.canvas.addEventListener("mouseup", canvasMouseUp);
-      //移动画布
       const { x, y } = this.getCanvasPoint(e);
+      //右键移动整个画布
+      if (e.button === 2 && this.config.value.mode === ETools.TOOLS_MOVE) {
+        this.canvas.addEventListener("mouseup", canvasMouseUp);
+        this.canvas.addEventListener("mousemove", canvasMouseMove);
+        this.mouseData.mouseDownPoint = { x, y };
+        this.mouseData.mouseMovePoint = { x, y };
+        preMousePoint.x = x, preMousePoint.y = y;
+        if (this.BasicAttribute.AREA_GRID_ALIGN) {
+          const newPoint = this.realPoint2GridAlignCanvasPoint2RealPoint(this.mouseData.mouseDownPoint);
+          this.mouseData.mouseDownPoint.x = newPoint.x, this.mouseData.mouseDownPoint.y = newPoint.y;
+        }
+        this.clearGraphicUtils();
+        this.dispatch("ToggleCursor", null, { cursor: Cursor.GRABBING });
+        return;
+      }
+      if (e.button !== 0) return;
+      //左键移动图形
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
         const graphic = this.findOptionGraphic(x, y);
         if (graphic) {
@@ -139,43 +164,64 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
         } else {
           this.currentOptionGraphic = null;
         }
+        this.clearGraphicUtils();
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRABBING });
       } else if (this.config.value.mode === ETools.TOOLS_ARROW) {
+        //当前工具栏是TOOLS_ARROW 且 当前有可操作的图形
         if (this.currentOptionGraphicTools) {
           this.graphicToolsEventBus.graphicToolsMouseMove = this.graphicToolsMouseMove.bind(this);
-          this.mouseData.mouseDownPoint = { x, y };
           this.canvas.addEventListener("mousemove", this.graphicToolsEventBus.graphicToolsMouseMove);
-          //当前正在移动
           this.currentIsMoveUtils = true;
-          this.currentGraphicRect = this.currentOptionGraphic?.getBoundaryRect && this.currentOptionGraphic.getBoundaryRect()
+          this.currentGraphicRect = this.currentOptionGraphic?.getBoundaryRect && this.currentOptionGraphic.getBoundaryRect();
+          this.canvas.addEventListener("mouseup", canvasMouseUp);
+          this.mouseData.mouseDownPoint = { x, y };
+          this.mouseData.mouseMovePoint = { x, y };
+          preMousePoint.x = x, preMousePoint.y = y;
+          if (this.BasicAttribute.AREA_GRID_ALIGN) {
+            const newPoint = this.realPoint2GridAlignCanvasPoint2RealPoint(this.mouseData.mouseDownPoint);
+            this.mouseData.mouseDownPoint.x = newPoint.x, this.mouseData.mouseDownPoint.y = newPoint.y;
+          }
           return;
         } else {
+          //删除事件监听
           if (this.graphicToolsEventBus.graphicToolsMouseMove)
             this.canvas.removeEventListener("mousemove", this.graphicToolsEventBus.graphicToolsMouseMove);
           this.graphicToolsEventBus.graphicToolsMouseMove = null;
-        }
-        const graphic = this.findOptionGraphic(x, y);
-        if (graphic && graphic.getBoundaryRect) {
-          const graphicRect = graphic.getBoundaryRect();
-          this.showGraphicUtils(graphicRect, graphic.graphicConfig);
-          this.currentOptionGraphic = graphic;
-        } else {
-          this.currentOptionGraphic = null;
-          this.graphicsTools = [];
-          this.reloadCanvas();
+          //获取当前点击的图形
+          const graphic = this.findOptionGraphic(x, y);
+          if (graphic && graphic.getBoundaryRect) {
+            const graphicRect = graphic.getBoundaryRect();
+            this.showGraphicUtils(graphicRect, graphic.graphicConfig);
+            this.currentOptionGraphic = graphic;
+          } else {
+            this.currentOptionGraphic = null;
+            this.clearGraphicUtils();
+          }
         }
       }
+      this.canvas.addEventListener("mouseup", canvasMouseUp);
       this.canvas.addEventListener("mousemove", canvasMouseMove);
-      screenPoint.x = x, screenPoint.y = y;
+      this.mouseData.mouseDownPoint = { x, y };
+      this.mouseData.mouseMovePoint = { x, y };
       preMousePoint.x = x, preMousePoint.y = y;
       if (this.BasicAttribute.AREA_GRID_ALIGN) {
-        const newPoint = this.realPoint2GridAlignCanvasPoint2RealPoint(screenPoint);
-        screenPoint.x = newPoint.x, screenPoint.y = newPoint.y;
+        const newPoint = this.realPoint2GridAlignCanvasPoint2RealPoint(this.mouseData.mouseDownPoint);
+        this.mouseData.mouseDownPoint.x = newPoint.x, this.mouseData.mouseDownPoint.y = newPoint.y;
       }
     }
     const canvasMouseMoveFn = (e: MouseEvent) => {
-      if (e.button !== 0) return;
       const { x, y } = this.getCanvasPoint(e);
+      //右键移动画布
+      if (e.button === 2 && this.config.value.mode === ETools.TOOLS_MOVE) {
+        this.mouseData.mouseMovePoint.x = x;
+        this.mouseData.mouseMovePoint.y = y;
+        this.transform.translate.x += (x - this.mouseData.mouseMovePoint.x);
+        this.transform.translate.y += (y - this.mouseData.mouseMovePoint.y);
+        this.dispatch("ToggleMove", null, JSON.parse(JSON.stringify(this.transform.translate)));
+        this.reloadCanvas();
+        return;
+      }
+      if (e.button !== 0) return;
       switch (this.config.value.mode) {
         case ETools.TOOLS_MOVE: {
           if (this.currentOptionGraphic) {
@@ -191,10 +237,10 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
               this.reloadCanvas();
             }
           } else {
-            this.transform.translate.x += (x - screenPoint.x);
-            this.transform.translate.y += (y - screenPoint.y);
-            screenPoint.x = x;
-            screenPoint.y = y;
+            this.transform.translate.x += (x - this.mouseData.mouseMovePoint.x);
+            this.transform.translate.y += (y - this.mouseData.mouseMovePoint.y);
+            this.mouseData.mouseMovePoint.x = x;
+            this.mouseData.mouseMovePoint.y = y;
             this.dispatch("ToggleMove", null, JSON.parse(JSON.stringify(this.transform.translate)));
             this.reloadCanvas();
           }
@@ -206,9 +252,9 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           if (this.BasicAttribute.AREA_GRID_ALIGN) {
             endPoint = this.realPoint2GridAlignCanvasPoint2RealPoint({ x, y });
           }
-          const w = endPoint.x - screenPoint.x;
-          const h = endPoint.y - screenPoint.y;
-          this.dispatch("ToggleArea", 5, { w, h, start: screenPoint, end: endPoint, bgColor: "#007aff10", borderColor: "#007aff" });
+          const w = endPoint.x - this.mouseData.mouseDownPoint.x;
+          const h = endPoint.y - this.mouseData.mouseDownPoint.y;
+          this.dispatch("ToggleArea", 5, { w, h, start: this.mouseData.mouseDownPoint, end: endPoint, bgColor: "#007aff10", borderColor: "#007aff" });
           break;
         }
         case ETools.TOOLS_DELETE_AREA: {
@@ -216,14 +262,21 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           if (this.BasicAttribute.AREA_GRID_ALIGN) {
             endPoint = this.realPoint2GridAlignCanvasPoint2RealPoint({ x, y });
           }
-          const w = endPoint.x - screenPoint.x;
-          const h = endPoint.y - screenPoint.y;
-          this.dispatch("ToggleArea", 5, { w, h, start: screenPoint, end: endPoint, bgColor: "#ff000010", borderColor: "#ff0000" });
+          const w = endPoint.x - this.mouseData.mouseDownPoint.x;
+          const h = endPoint.y - this.mouseData.mouseDownPoint.y;
+          this.dispatch("ToggleArea", 5, { w, h, start: this.mouseData.mouseDownPoint, end: endPoint, bgColor: "#ff000010", borderColor: "#ff0000" });
           break;
         }
       }
     }
     const canvasMouseUpFn = (e: MouseEvent) => {
+      if (e.button === 2 && this.config.value.mode === ETools.TOOLS_MOVE) {
+        this.dispatch("ToggleCursor", null, { cursor: Cursor.GRAB });
+        this.canvas.removeEventListener("mouseup", canvasMouseUp);
+        this.canvas.removeEventListener("mousemove", canvasMouseMove);
+        this.currentOptionGraphic = null;
+        return;
+      }
       if (e.button !== 0) return;
       if (this.currentIsMoveUtils) {
         this.currentIsMoveUtils = false;
@@ -234,6 +287,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       }
       if (this.config.value.mode === ETools.TOOLS_MOVE) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.GRAB });
+        this.currentOptionGraphic = null;
       } else if (this.config.value.mode === ETools.TOOLS_ARROW) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
       }
@@ -243,7 +297,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       if (this.BasicAttribute.AREA_GRID_ALIGN) {
         endPoint = this.realPoint2GridAlignCanvasPoint(point);
       }
-      const startPoint = this.realPoint2GridAlignCanvasPoint(screenPoint);
+      const startPoint = this.realPoint2GridAlignCanvasPoint(this.mouseData.mouseDownPoint);
       //获取画布坐标
       this.dispatch("ToggleAreaEnd", null, { start: startPoint, end: endPoint })
       this.canvas.removeEventListener("mouseup", canvasMouseUp);
@@ -309,11 +363,25 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           this.currentOptionGraphicTools = null;
           this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
         }
+      } else if (this.config.value.mode === ETools.TOOLS_COPY_CIRCUIT) {
+        let start = this.realPoint2GridAlignCanvasFloorPoint({ x, y });
+        const end = this.canvasPoint2RealPoint({
+          x: start.x + this.BasicAttribute.GRID_STEP_SIZE,
+          y: start.y + this.BasicAttribute.GRID_STEP_SIZE
+        })
+        start = this.canvasPoint2RealPoint(start);
+        this.dispatch("ToggleArea", null, {
+          w: end.x - start.x, h: end.y - start.y,
+          start, end,
+          borderColor: "#00ff00", bgColor: "#00ff0010"
+        });
       }
     })
   }
 
   initGraphics() {
+    this.graphics.sort((a, b) => ((a.priority ?? 0) - (b.priority ?? 0)));
+    this.graphics = this.graphics.filter(g => !g.isremoved);
     requestAnimationFrame(() => {
       this.graphics.forEach(g => g.graphic.draw());
       this.graphicsTools.forEach(g => g.graphic.draw());
@@ -324,15 +392,15 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  addGraphic({ graphic, id }: Graphics) {
+  addGraphic({ graphic, id, priority }: Graphics) {
     if (id === "auto") {
-      this.graphics.unshift({ graphic, id: (this.graphicId++).toString() });
+      this.graphics.unshift({ graphic, id: this.graphicId.toString(), priority: this.graphicId++ });
     }
     else {
       if (this.graphics.find(g => g.id == id)) {
         this.graphics.splice(this.graphics.findIndex(g => g.id == id), 1);
       }
-      this.graphics.unshift({ graphic, id });
+      this.graphics.unshift({ graphic, id, priority });
     }
     this.reloadCanvas();
   }
@@ -374,6 +442,15 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     return newCanvasPoint;
   }
 
+  // 屏幕坐标 -> 画布与网格对齐的最小坐标
+  realPoint2GridAlignCanvasFloorPoint(point: IRealisticPoint): ICanvasPoint {
+    const canvasPoint = this.realPoint2CanvasPoint(point);
+    const newPointx = Math.floor(canvasPoint.x / this.BasicAttribute.GRID_STEP_SIZE) * this.BasicAttribute.GRID_STEP_SIZE;
+    const newPointy = Math.floor(canvasPoint.y / this.BasicAttribute.GRID_STEP_SIZE) * this.BasicAttribute.GRID_STEP_SIZE;
+    const newCanvasPoint: ICanvasPoint = { x: newPointx, y: newPointy };
+    return newCanvasPoint;
+  }
+
   //屏幕坐标 -> grid 像素坐标
   realPoint2GridPixelsPoint(point: IRealisticPoint): Point {
     const canvasPoint = this.realPoint2GridAlignCanvasPoint(point);
@@ -405,14 +482,19 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     let ev = event as string;
     if (event.startsWith("canvasDispatch:")) ev = event.replaceAll("canvasDispatch:", "");
     ev = firstLetterToLower(ev);
-    this.graphics.forEach(({ graphic }) => {
+    this.graphics.map(({ graphic }) => {
       (graphic as any)[ev] ? ((graphic as any)[ev](param)) : null;
     });
+    if (ev === "areaDelete") {
+      this.reloadCanvas();
+    }
+
   }
 
   //寻找第一个可操作的图形
   findOptionGraphic(x: number, y: number): canvasGraphic | null {
     const canvasPoint = this.realPoint2CanvasPoint({ x, y });
+    this.graphics.sort((a, b) => ((b.priority ?? 0) - (a.priority ?? 0)));
     for (const g of this.graphics) {
       if (g.graphic.graphicConfig && g.graphic.graphicConfig.GRAPHIC_MOVE && g.graphic.pointContainer && g.graphic.pointContainer(canvasPoint.x, canvasPoint.y)) {
         return g.graphic;
@@ -423,7 +505,6 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
 
   //显示图形编辑栏
   showGraphicUtils(rect: GraphicRect, options?: IGraphicConfig) {
-    // 左上 上 右上 右 右下 下 左下 左
     const LEFT_TOP = JSON.parse(JSON.stringify(rect.begin)) as ICanvasPoint;
     const TOP = { x: LEFT_TOP.x + rect.width / 2, y: LEFT_TOP.y };
     const RIGHT_TOP = { x: LEFT_TOP.x + rect.width, y: LEFT_TOP.y };
@@ -446,8 +527,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     if (options?.GRAPHIC_RESIZE) {
       for (let i = 0; i < 8; i++) {
         let begin = point[i];
-        const dragItem = new DragItem(i, { x: begin.x, y: begin.y }, this);
-        ret.push({ id: `drag_${i}`, graphic: dragItem });
+        const dragItem = new DragItem(i, { x: begin.x, y: begin.y }, this as unknown as PixelsBuilder);
+        ret.push({ id: `drag_${i}`, graphic: dragItem, priority: i });
       }
     }
     if (options?.GRAPHIC_ROTATE) {
@@ -457,7 +538,12 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.reloadCanvas();
   }
 
-  //判断工具栏类型
+  clearGraphicUtils() {
+    this.graphicsTools = [];
+    this.reloadCanvas();
+  }
+
+  //获取当前选择的工具栏类型
   hasMoveToGraphicTools(point: Point): GraphicTools | null {
     const canvasPoint: ICanvasPoint = this.realPoint2CanvasPoint(point);
     const g = this.graphicsTools.find(g => g.graphic.pointContainer && g.graphic.pointContainer(canvasPoint.x, canvasPoint.y));
@@ -474,12 +560,11 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
 
   //工具栏事件
   graphicToolsMouseMove(e: MouseEvent) {
-    if (!this.currentOptionGraphicTools) return;
-    if (this.currentOptionGraphic && this.currentGraphicRect) {
+    const { x, y } = this.getCanvasPoint(e);
+    if (this.currentOptionGraphic && this.currentGraphicRect && this.currentOptionGraphicTools) {
       let { begin, width, height } = this.currentGraphicRect;
       begin = JSON.parse(JSON.stringify(begin));
       const util = this.currentOptionGraphicTools?.util;
-      const { x, y } = this.getCanvasPoint(e);
       const E = this.realPoint2CanvasPoint({ x, y });
       const S = this.realPoint2CanvasPoint(this.mouseData.mouseDownPoint);
       const offset = { x: E.x - S.x, y: E.y - S.y };

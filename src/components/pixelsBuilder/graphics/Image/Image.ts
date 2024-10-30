@@ -1,6 +1,6 @@
 import { IAreaCHoose, ICanvasPoint, IRealisticPoint } from "../../pixel.type";
 import { PixelsBuilder } from "../../pixelsBuilder";
-import { canvasGraphic, GraphicRect, IGraphic, IGraphicConfig } from "../graphics";
+import { canvasGraphic, GraphicRect, IGraphicConfig } from "../graphics";
 
 export class ImageGraphic implements canvasGraphic {
 
@@ -32,13 +32,20 @@ export class ImageGraphic implements canvasGraphic {
     }
     this.image = image;
   }
+  offset = { x: 0, y: 0 }
 
   areaSelect(param: IAreaCHoose) {
 
   }
 
   areaDelete(param: IAreaCHoose) {
-
+    const begin = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(param.areaStart);
+    const end = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(param.areaEnd);
+    const { begin: S, width, height } = this.getBoundaryRect();
+    console.log(this);
+    if (begin.x <= S.x && begin.y <= S.y && (end.x >= (S.x + width) && end.y >= (S.y + height))) {
+      this.pixelsBuilder.removeGraphic(this);
+    }
   };
 
   setBoundaryRect(rect: GraphicRect) {
@@ -64,8 +71,6 @@ export class ImageGraphic implements canvasGraphic {
     const begin = this.pixelsBuilder.canvasPoint2GridAlign({ x: this.begin.x + this.offset.x, y: this.begin.y + this.offset.y });
     this.pixelsBuilder.ctx.drawImage(this.image, begin.x, begin.y, this.width * grid, this.height * grid);
   }
-
-  offset = { x: 0, y: 0 }
 
   translate(start: IRealisticPoint, end: IRealisticPoint) {
     const S = this.pixelsBuilder.realPoint2CanvasPoint(start);

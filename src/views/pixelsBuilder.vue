@@ -24,7 +24,8 @@
         left: Area.left + 'px',
         top: Area.top + 'px',
         borderColor: Area.borderColor,
-        backgroundColor: Area.bgColor
+        backgroundColor: Area.bgColor,
+        cursor: cursor
       }"></div>
       <div class="info">
         <div class="translate">({{ info.translate.x }}, {{ info.translate.y }})</div>
@@ -55,9 +56,8 @@ import { computed, onMounted, reactive, Ref, ref, unref, useTemplateRef } from "
 import ledToolsPanel from "./component/ledToolsPanel.vue";
 import { ILayoutSetting, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
 import { ILedControllers } from "./index.type";
-import { getRandomColor } from "@/components/pixelsBuilder/utils/utils";
 import { Plus } from '@element-plus/icons-vue'
-import type { UploadProps, UploadRawFile } from 'element-plus'
+import { ElMessage, type UploadProps, type UploadRawFile } from 'element-plus'
 import { ImageGraphic } from "@/components/pixelsBuilder/graphics/Image/Image";
 
 const pixels = useTemplateRef("pixels");
@@ -69,7 +69,8 @@ const tools: Ref<ITools[]> = ref([
   { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
   { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
   { label: "添加图片", code: ETools.TOOLS_ADD_IMAGE, icon: require("@/assets/image.png") },
-  { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") }
+  { label: "复制线路", code: ETools.TOOLS_COPY_CIRCUIT, icon: require("@/assets/circuit.png") },
+  { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") },
 ]);
 const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
 const cursor = ref<Cursor>(Cursor.DEFAULT);
@@ -96,11 +97,25 @@ const toggleMode = (e: ETools) => {
 
       break;
     case ETools.TOOLS_ADD_IMAGE:
+      if (!ledLayout.value) {
+        ElMessage.error("请创建LedLayout");
+        return;
+      }
       showDialogCreateImage.value = true;
       break;
     case ETools.TOOLS_DELETE_AREA:
       mode.value = e;
       cursor.value = Cursor.DEFAULT;
+      break;
+    case ETools.TOOLS_COPY_CIRCUIT:
+      if (!ledLayout.value) {
+        ElMessage.error("请创建LedLayout");
+      } else if (!ledLayout.value.ledLayoutSetting?.ledSetting?.no) {
+        ElMessage.error("请选择一条线路");
+      } else {
+        ledLayout.value.copyCircuit(ledLayout.value.ledLayoutSetting.ledSetting.no);
+        mode.value = e;
+      }
       break;
   }
 }
@@ -113,7 +128,7 @@ const setLedSetting = (setting: ILayoutSetting) => ledLayout.value && ledLayout.
 const ledControllers = ref<ILedControllers[]>([]);
 const createLedLayout = (param: { width: number, height: number }) => {
   ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!, useLedLayoutConfig);
-  pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value });
+  pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value, priority: 999999999 });
   ledToolsPanelRef.value?.clearLedSelected();
   ledLayout.value.on("LedSelected", ({ no, size }) => {
     ledToolsPanelRef.value?.setLedSelected(no, size);
@@ -139,7 +154,7 @@ const initLedController = (leds: number, star: number) => {
     let n = Math.min(leds, 10);
     let ret = [];
     for (let i = star; i < star + n; i++) {
-      const color = getRandomColor();
+      const color = ["#ff0000", "#00ff00", "#0000ff"][i % 3];
       const pixels = 0;
       const fenController = i + 1;
       const no = i + 1;
@@ -179,6 +194,7 @@ onMounted(() => {
     });
     pixelsBuilder.value.on("ToggleAreaClose", _ => {
       Area.value.show = false;
+      if (mode.value === ETools.TOOLS_COPY_CIRCUIT) mode.value = ETools.TOOLS_ARROW;
     });
     pixelsBuilder.value.on("ToggleMove", translate => {
       info.value.translate = {
@@ -258,6 +274,7 @@ onMounted(() => {
     position: absolute;
     bottom: 10px;
     left: 10px;
+    color: #ffffff;
     font-size: 12px;
   }
 
@@ -268,9 +285,8 @@ onMounted(() => {
     flex-direction: row;
     align-items: center;
     gap: 10px;
-    left: 50%;
+    right: 100px;
     top: 20px;
-    transform: translateX(-50%);
     width: 600px;
     height: 40px;
     border-radius: 60px;

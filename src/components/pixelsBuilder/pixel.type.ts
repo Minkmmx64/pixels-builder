@@ -41,6 +41,8 @@ export interface IGraphicPatch {
   areaDelete: IAreaCHoose;
   //mouseup
   mouseup?: Point;
+  //一整条线路复制
+  onCurcuitCopy ?: Point;
 }
 
 export type IFunctionInterFace<T> = {

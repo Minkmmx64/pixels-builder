@@ -3,10 +3,11 @@ import { IAreaCHoose, ICanvasPoint, Point } from "../pixel.type";
 import { PixelsBuilder } from "../pixelsBuilder";
 import { canvasGraphic } from "./graphics";
 import { Led } from "./led/led";
-import { ELineAction, ERelaPosition } from "../enum";
+import { Cursor, ELineAction, ERelaPosition } from "../enum";
 import { Listener } from "../pixelsListener";
 import { ILedControllers } from "@/views/index.type";
 import { ComputedRef, unref } from "vue";
+import { ElMessage } from "element-plus";
 
 /**
  * 绘制led 面板
@@ -34,12 +35,13 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
   ledLinkedListMasterCollection: Map<number, DoubleLinkedLists<Led>> = new Map();
   ledPointHashCollection: Map<string, DoubleLinkedNode<Led>[]> = new Map();
   ledCoordinate: Set<string> = new Set();
-
   ledLayoutSetting !: ILayoutSetting;
   //全局Layout信息
   globalConfig = {
     COVERABLE: true,  //是否可以覆盖在点上
   }
+  //线路复制栈
+  circuitStack: { diff: Point[], no: number }[] = [];
 
   draw() {
     const ctx = this.pixelsBuilder.ctx;
@@ -117,8 +119,8 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     }
   }
 
-  getLedLinksLists(links: Point[]) {
-    const controller = this.ledLayoutSetting.ledSetting.no!
+  getLedLinksLists(links: Point[], CheckThresholdPoints?: boolean, no?: number) {
+    const controller = no ?? this.ledLayoutSetting.ledSetting.no!;
     if (this.ledLinkedListMasterCollection.get(controller)) { }
     else this.ledLinkedListMasterCollection.set(controller, new DoubleLinkedLists(this.ledLayoutSetting.ledSetting.no!));
     let doubleLinkedLists = this.ledLinkedListMasterCollection.get(controller)!;
@@ -132,8 +134,8 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
         doubleLinkedLists.head = doubleLinkedLists.tail = node;
         doubleLinkedLists.size++;
       } else {
-        //判断当前有没有超出阈值
-        if (doubleLinkedLists.size + 1 > this.ledLayoutSetting.thresholdPoints) {
+        //是否需要判断当前有没有超出阈值
+        if (doubleLinkedLists.size + 1 > this.ledLayoutSetting.thresholdPoints && !CheckThresholdPoints) {
           this.dispatch("LedSelected", null, { no: doubleLinkedLists.no, size: doubleLinkedLists.size });
           //寻找下一个配置
           const ledConfig = this.loadNextLedLayoutConfig();
@@ -225,10 +227,10 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
       data.no = no++;
       const center = data.center;
       //if (pre) {
-        // ctx.strokeStyle = data.ledSetting.color!;
-        // ctx.moveTo(pre.x, pre.y);
-        // ctx.lineTo(center.x, center.y);
-        // ctx.stroke();
+      // ctx.strokeStyle = data.ledSetting.color!;
+      // ctx.moveTo(pre.x, pre.y);
+      // ctx.lineTo(center.x, center.y);
+      // ctx.stroke();
       //}
       ctx.beginPath();
       data.draw();
@@ -247,6 +249,54 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     this.deleteAreaIntersection(areaStart, areaEnd, pos);
   }
 
+  LinkedListsToArray(headLed: DoubleLinkedLists<Led>): Point[] {
+    const ret: Led[] = [];
+    let p: DoubleLinkedNode<Led> | null = headLed.head;
+    while (p) {
+      ret.push(p.data);
+      p = p.next;
+    }
+    return ret.map(led => JSON.parse(JSON.stringify(this.pixelsBuilder.cavnasPoint2GridPixelsPoint(led.center))));
+  }
+
+  copyCircuit(no: number) {
+    const LinkedList = this.ledLinkedListMasterCollection.get(no);
+    if (LinkedList && LinkedList.head) {
+      const data = this.LinkedListsToArray(LinkedList);
+      const diff: Point[] = [{ x: 0, y: 0 }];
+      for (let i = 1; i < data.length; i++) {
+        diff[i] = {
+          x: data[i].x - data[i - 1].x,
+          y: data[i].y - data[i - 1].y
+        }
+      }
+      this.circuitStack = [{ diff, no }];
+      this.pixelsBuilder.dispatch("ToggleCursor", null, { cursor: Cursor.COPY });
+    } else {
+      ElMessage.error("该线路暂无数据");
+    }
+  }
+
+  onCurcuitCopy(param: Point | undefined) {
+    if (param) {
+      const data = this.circuitStack[0];
+      if (data) {
+        const ret: Point[] = [];
+        let d = { x: 0, y: 0 };
+        let point = param;
+        ret.push(point);
+        for (let i = 1; i < data.diff.length; i++) {
+          d.x += data.diff[i].x, d.y += data.diff[i].y;
+          ret.push({ x: point.x + d.x, y: point.y + d.y });
+        }
+        const points = ret.filter(point => this.beginPoint.x <= point.x * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
+          (this.beginPoint.x + this.width * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE) > point.x * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
+          this.beginPoint.y <= point.y * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
+          (this.beginPoint.y + this.height * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE) > point.y * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE);
+        this.getLedLinksLists(points, true, data.no);
+      }
+    }
+  }
 }
 
 //led配置信息
