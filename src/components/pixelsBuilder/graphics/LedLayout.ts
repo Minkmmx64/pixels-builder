@@ -289,11 +289,35 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
           d.x += data.diff[i].x, d.y += data.diff[i].y;
           ret.push({ x: point.x + d.x, y: point.y + d.y });
         }
-        const points = ret.filter(point => this.beginPoint.x <= point.x * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
-          (this.beginPoint.x + this.width * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE) > point.x * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
-          this.beginPoint.y <= point.y * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
-          (this.beginPoint.y + this.height * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE) > point.y * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE);
+        const points = ret.filter(point => this.pointInteraction(point));
         this.getLedLinksLists(points, true, data.no);
+      }
+    }
+  }
+
+  //点是否在led内部
+  pointInteraction(point: Point): boolean {
+    return this.beginPoint.x <= point.x * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
+      (this.beginPoint.x + this.width * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE) > point.x * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
+      this.beginPoint.y <= point.y * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE &&
+      (this.beginPoint.y + this.height * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE) > point.y * this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE
+  }
+
+  onContextMenu(point: Point | undefined) {
+    const no = this.ledLayoutSetting?.ledSetting?.no;
+    if (point && no && this.pointInteraction(point)) {
+      const node = this.ledLinkedListMasterCollection.get(no);
+      if (node?.size) {
+        let start = node.tail?.data.center;
+        if (start) {
+          start = this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.pixelsBuilder.realPoint2GridAlignCanvasFloorPoint(this.pixelsBuilder.canvasPoint2RealPoint(start)));
+          const end = point;
+          let points = this.pixelsBuilder.mathUtils.Bresenham(start, end);
+          if (!this.ledLayoutSetting.overlap) {
+            points = points.filter(({ x, y }) => !this.ledCoordinate.has(this.getPointHash(x, y)));
+          }
+          this.getLedLinksLists(points);
+        }
       }
     }
   }

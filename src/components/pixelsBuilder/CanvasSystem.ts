@@ -323,6 +323,10 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.canvas.addEventListener("contextmenu", e => {
       e.preventDefault();
       //获取屏幕坐标 -> 计算画布坐标 -> 派发右击事件给所有 graphic
+      const point = this.cavnasPoint2GridPixelsPoint(this.realPoint2GridAlignCanvasFloorPoint(this.getCanvasPoint(e)));
+      if (this.config.value.mode === ETools.TOOLS_ARROW) {
+        this.dispatchGraphicEvent("canvasDispatch:OnContextMenu", point);
+      }
     });
 
     //检测是否触碰到工具栏

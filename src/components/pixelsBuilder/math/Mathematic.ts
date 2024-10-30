@@ -245,4 +245,40 @@ export class Mathematic {
     }
     return ret;
   }
+
+  //Bresenham 直线算法
+  Bresenham({ x: x1, y: y1 }: Point, { x: x2, y: y2 }: Point): Point[] {
+    const ret: Point[] = [];
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let stepX = dx >= 0 ? 1 : -1;
+    let stepY = dy >= 0 ? 1 : -1;
+    dx = Math.abs(dx);
+    dy = Math.abs(dy);
+    if (dx > dy) {
+      let p = 2 * dy - dx;
+      let y = y1;
+      for (let x = x1; x - stepX != x2; x += stepX) {
+        ret.push({ x, y });
+        if (p > 0) {
+          y += stepY;
+          p -= 2 * dx;
+        }
+        p += 2 * dy;
+      }
+    }
+    else {
+      let p = 2 * dx - dy;
+      let x = x1;
+      for (let y = y1; y - stepY != y2; y += stepY) {
+        ret.push({ x, y });
+        if (p > 0) {
+          x += stepX;
+          p -= 2 * dy;
+        }
+        p += 2 * dx;
+      }
+    }
+    return ret;
+  }
 }

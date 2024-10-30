@@ -43,6 +43,8 @@ export interface IGraphicPatch {
   mouseup?: Point;
   //一整条线路复制
   onCurcuitCopy ?: Point;
+  //右键事件
+  onContextMenu ?: Point;
 }
 
 export type IFunctionInterFace<T> = {
