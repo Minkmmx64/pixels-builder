@@ -4,7 +4,7 @@
       <ledToolsPanel ref="ledToolsPanelRef" v-model:ledControllers="ledControllers" @setLedSetting="setLedSetting"
         @createLedLayout="createLedLayout" />
     </div>
-    <div class="canvas_panel">
+    <div class="canvas_panel" v-loading="canvasLoading">
       <canvas ref="pixels" :style="{
         cursor: cursor,
         width: '100%',
@@ -27,6 +27,13 @@
         backgroundColor: Area.bgColor,
         cursor: cursor
       }"></div>
+      <el-image v-show="ledPasteImageUrl" :src="ledPasteImageUrl" :style="{
+        width: '100px',
+        height: '100px',
+        left: Area.left + 'px',
+        top: Area.top + 100 + 'px',
+        position: 'absolute'
+      }" />
       <div class="info">
         <div class="translate">({{ info.translate.x }}, {{ info.translate.y }})</div>
       </div>
@@ -42,6 +49,23 @@
         <span class="dialog-footer">
           <el-button @click="showDialogCreateImage = false">取消</el-button>
           <el-button type="primary" @click="handleCreateImage">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
+    <el-dialog v-model="showDialogCopyCircuit" title="选择需要覆盖的线路" width="300" center>
+      <el-select v-model="currentSelectCopyCircuit" class="m-2" placeholder="Select" size="small" style="width: 240px">
+        <el-option v-for="item in ledControllers" :key="item.fenController" :label="item.fenController"
+          :value="item.fenController">
+          <div class="circuit-option">
+            <div :style="{ backgroundColor: item.color }"></div>
+            <span>{{ item.fenController }}</span>
+          </div>
+        </el-option>
+      </el-select>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showDialogCopyCircuit = false">取消</el-button>
+          <el-button type="primary" @click="handleCopyCorcuit">确定</el-button>
         </span>
       </template>
     </el-dialog>
@@ -62,25 +86,27 @@ import { ImageGraphic } from "@/components/pixelsBuilder/graphics/Image/Image";
 
 const pixels = useTemplateRef("pixels");
 const ledToolsPanelRef = useTemplateRef("ledToolsPanelRef");
-
+const canvasLoading = ref(false);
 const tools: Ref<ITools[]> = ref([
   { label: "箭头", code: ETools.TOOLS_ARROW, icon: require("@/assets/arrow.png") },
   { label: "移动", code: ETools.TOOLS_MOVE, icon: require("@/assets/move.png") },
+  { label: "复制线路", code: ETools.TOOLS_COPY_CIRCUIT, icon: require("@/assets/circuit.png") },
+  { label: "添加图片", code: ETools.TOOLS_ADD_IMAGE, icon: require("@/assets/image.png") },
+  { label: "复制led选区", code: ETools.TOOLS_COPY_AREA, icon: require("@/assets/copy_area.png") },
+  { label: "粘贴led选区", code: ETools.TOOLS_PASTE_AREA, icon: require("@/assets/paste.png") },
   { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
   { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
-  { label: "添加图片", code: ETools.TOOLS_ADD_IMAGE, icon: require("@/assets/image.png") },
-  { label: "复制线路", code: ETools.TOOLS_COPY_CIRCUIT, icon: require("@/assets/circuit.png") },
   { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") },
 ]);
 const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
 const cursor = ref<Cursor>(Cursor.DEFAULT);
 const showDialogCreateImage = ref(false);
 const imageUrl = ref("");
-const info = ref({
-  translate: { x: 0, y: 0 },
-  backGround: "#ffffff"
-});
+const info = ref({ translate: { x: 0, y: 0 }, backGround: "#ffffff" });
+const ledPasteImageUrl = ref("");
 const toggleMode = (e: ETools) => {
+  Area.value.show = false;
+  ledPasteImageUrl.value = "";
   switch (e) {
     case ETools.TOOLS_ARROW:
       cursor.value = Cursor.DEFAULT;
@@ -91,10 +117,10 @@ const toggleMode = (e: ETools) => {
       mode.value = e;
       break;
     case ETools.TOOLS_WITHDRAW:
-
+      pixelsBuilder.value?.undo();
       break;
     case ETools.TOOLS_RE_WITHDRAW:
-
+      pixelsBuilder.value?.redo();
       break;
     case ETools.TOOLS_ADD_IMAGE:
       if (!ledLayout.value) {
@@ -107,18 +133,34 @@ const toggleMode = (e: ETools) => {
       mode.value = e;
       cursor.value = Cursor.DEFAULT;
       break;
+    case ETools.TOOLS_COPY_AREA:
+      mode.value = e;
+      cursor.value = Cursor.COPY;
+      break;
+    case ETools.TOOLS_PASTE_AREA:
+      if (!ledLayout.value?.copyPrototype.copyAreaThumbnail || !ledLayout.value.copyPrototype.copyAreaStack.length) {
+        ElMessage.error("请复制一条区域");
+        return;
+      }
+      mode.value = e;
+      cursor.value = Cursor.COPY;
+      break;
     case ETools.TOOLS_COPY_CIRCUIT:
       if (!ledLayout.value) {
         ElMessage.error("请创建LedLayout");
       } else if (!ledLayout.value.ledLayoutSetting?.ledSetting?.no) {
         ElMessage.error("请选择一条线路");
       } else {
-        ledLayout.value.copyCircuit(ledLayout.value.ledLayoutSetting.ledSetting.no);
-        mode.value = e;
+        //弹窗选择线路框
+        if (ledLayout.value.copyCircuit(ledLayout.value.ledLayoutSetting.ledSetting.no)) {
+          showDialogCopyCircuit.value = true;
+        }
       }
       break;
   }
 }
+const currentSelectCopyCircuit = ref<number>(1);
+const showDialogCopyCircuit = ref(false);
 const Area = ref({ w: 0, h: 0, left: 0, top: 0, show: false, borderColor: "", bgColor: "" });
 const pixelsBuilder = ref<PixelsBuilder>();
 const ledLayout = ref<LedLayout>();
@@ -126,12 +168,23 @@ const useConfig = computed(() => reactive({ mode: unref(mode) }));
 const useLedLayoutConfig = computed(() => ledControllers.value);
 const setLedSetting = (setting: ILayoutSetting) => ledLayout.value && ledLayout.value.setLedSetting(setting);
 const ledControllers = ref<ILedControllers[]>([]);
+const handleCopyCorcuit = () => {
+  mode.value = ETools.TOOLS_COPY_CIRCUIT;
+  showDialogCopyCircuit.value = false;
+  ledLayout.value?.setCircuitCopyTarget(currentSelectCopyCircuit.value, ledControllers.value[currentSelectCopyCircuit.value - 1].color);
+}
 const createLedLayout = (param: { width: number, height: number }) => {
   ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!, useLedLayoutConfig);
   pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value, priority: 999999999 });
   ledToolsPanelRef.value?.clearLedSelected();
   ledLayout.value.on("LedSelected", ({ no, size }) => {
     ledToolsPanelRef.value?.setLedSelected(no, size);
+  });
+  ledLayout.value.on("ClearLedSelected", () => {
+    ledToolsPanelRef.value?.clearLedSelected();
+  });
+  ledLayout.value.on("LedSelectedNo", led => {
+    ledToolsPanelRef.value?.handleSelectLedController(led);
   });
 }
 const uploadFile = ref<UploadRawFile | null>(null);
@@ -191,38 +244,35 @@ onMounted(() => {
           break;
         }
       }
+      if (mode.value === ETools.TOOLS_PASTE_AREA) {
+        if (!ledPasteImageUrl.value) ledPasteImageUrl.value = ledLayout.value?.copyPrototype.copyAreaThumbnail ?? "";
+      }
     });
     pixelsBuilder.value.on("ToggleAreaClose", _ => {
       Area.value.show = false;
       if (mode.value === ETools.TOOLS_COPY_CIRCUIT) mode.value = ETools.TOOLS_ARROW;
+      if (mode.value === ETools.TOOLS_PASTE_AREA) mode.value = ETools.TOOLS_ARROW;
     });
     pixelsBuilder.value.on("ToggleMove", translate => {
-      info.value.translate = {
-        x: Math.round(translate.x),
-        y: Math.round(translate.y)
-      };
+      info.value.translate = { x: Math.round(translate.x), y: Math.round(translate.y) };
     });
     pixelsBuilder.value.on("ToggleAreaEnd", ({ start, end }) => {
       let st = pixelsBuilder.value!.mathUtils.pointRelaPos(start, end);
       let areaBegin !: Point, areaEnd !: Point;
       switch (st) {
-        case ERelaPosition.B_3_QUADRANT_A: {
-          // >>
+        case ERelaPosition.B_3_QUADRANT_A: { // >>
           areaBegin = { x: end.x, y: end.y }, areaEnd = { x: start.x, y: start.y }
           break;
         }
-        case ERelaPosition.B_4_QUADRANT_A: {
-          // ><
+        case ERelaPosition.B_4_QUADRANT_A: { // ><
           areaBegin = { x: end.x, y: start.y }, areaEnd = { x: start.x, y: end.y };
           break;
         }
-        case ERelaPosition.B_1_QUADRANT_A: {
-          // <>
+        case ERelaPosition.B_1_QUADRANT_A: { // <>
           areaBegin = { x: start.x, y: end.y }, areaEnd = { x: end.x, y: start.y };
           break;
         }
-        case ERelaPosition.B_2_QUADRANT_A: {
-          // <<
+        case ERelaPosition.B_2_QUADRANT_A: { // <<
           areaBegin = start, areaEnd = end;
           break;
         }
@@ -235,7 +285,11 @@ onMounted(() => {
       else if (mode.value === ETools.TOOLS_DELETE_AREA) {
         pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaDelete", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
       }
-    })
+      else if (mode.value === ETools.TOOLS_COPY_AREA) {
+        ledLayout.value?.copyLedArea({ x: sx, y: sy }, { x: ex, y: ey });
+      }
+    });
+    pixelsBuilder.value.on("ToggleAreaThumbnail", _ => ledPasteImageUrl.value = "");
   }
 })
 </script>
@@ -249,6 +303,20 @@ onMounted(() => {
   align-items: center;
   position: relative;
   overflow: hidden;
+
+  .circuit-option {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+
+    div {
+      width: 20px;
+      height: 20px;
+    }
+  }
 
   .left_panel {
     height: 100vh;

@@ -91,8 +91,8 @@ const lineActionData = ref<ILineAction[]>([
   { label: "折返列优先", code: ELineAction.BACK_COLUMN_PRIOR }
 ])
 const lineAction = ref<ELineAction>(ELineAction.SINGULAR_ROW_PRIOR);
-const ledLayoutSize = ref({ w: "10", h: "10" });
-const thresholdPoints = ref(100);
+const ledLayoutSize = ref({ w: "25", h: "25" });
+const thresholdPoints = ref(1024);
 const handleCreateLedLayout = () => {
   Emit("createLedLayout", { width: parseInt(ledLayoutSize.value.w), height: parseInt(ledLayoutSize.value.h) });
   showDialogCreate.value = false;
@@ -120,7 +120,8 @@ const ledControllers = defineModel<ILedControllers[]>("ledControllers", { requir
 
 defineExpose({
   setLedSelected: setLedSelected,
-  clearLedSelected: clearLedSelected
+  clearLedSelected: clearLedSelected,
+  handleSelectLedController: handleSelectLedController
 })
 </script>
 

@@ -31,6 +31,10 @@ export interface IPixelsEventListener {
   * 画布移动
   */
   ToggleMove: IRealisticPoint;
+  /**
+  * 显示复制缩略图 
+  */
+ ToggleAreaThumbnail: string;
 }
 
 //宿主派发事件
@@ -45,6 +49,12 @@ export interface IGraphicPatch {
   onCurcuitCopy ?: Point;
   //右键事件
   onContextMenu ?: Point;
+  //区域复制
+  onCurcuitAreaPaste ?: Point;
+  //恢复快照
+  redoSnapShot ?: undefined;
+  //撤销
+  undoSnapShot ?: undefined;
 }
 
 export type IFunctionInterFace<T> = {

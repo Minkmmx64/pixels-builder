@@ -19,6 +19,8 @@ export enum ETools {
   TOOLS_DELETE_AREA,  //删除区域
   TOOLS_ADD_IMAGE,    //添加图片
   TOOLS_COPY_CIRCUIT, //复制线路
+  TOOLS_COPY_AREA,    //复制选区
+  TOOLS_PASTE_AREA,   //粘贴选区
 }
 
 //接线方式

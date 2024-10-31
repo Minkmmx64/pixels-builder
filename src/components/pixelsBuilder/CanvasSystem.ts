@@ -8,6 +8,7 @@ import { Listener } from "./pixelsListener";
 import { firstLetterToLower } from "./utils/utils";
 import { DragItem, EGraphicMoveTools } from "./graphics/dragItem";
 import { PixelsBuilder } from "./pixelsBuilder";
+import { ElMessage } from "element-plus";
 
 // <typename T = 宿主容器事件 & graphic 图形派发事件 />
 export class CanvasSystem extends Listener<IPixelsEventListener> {
@@ -44,10 +45,6 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   graphics: Graphics[] = [];
   //工具绘图元素
   graphicsTools: Graphics<GraphicTools>[] = [];
-  //撤回栈
-  withDrawStack: ImageData[] = [];
-  //取消撤回栈
-  reWithDrawStack: ImageData[] = [];
   //当前正在操作的图形
   currentOptionGraphic: canvasGraphic | null = null;
   //当前操作的工具图形
@@ -116,8 +113,6 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     }
   }
 
-  //移动整个画布
-
   initEventListener() {
     //区域选择mouseup事件
     const area = document.getElementById("area");
@@ -133,6 +128,16 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           y: point.y / this.BasicAttribute.GRID_STEP_SIZE
         }
         this.dispatchGraphicEvent("canvasDispatch:OnCurcuitCopy", XY);
+      } else if (this.config.value.mode === ETools.TOOLS_PASTE_AREA) {
+        this.dispatch("ToggleAreaClose", null, null);
+        this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
+        const point = this.realPoint2GridAlignCanvasFloorPoint(this.getCanvasPoint(e));
+        const XY = {
+          x: point.x / this.BasicAttribute.GRID_STEP_SIZE,
+          y: point.y / this.BasicAttribute.GRID_STEP_SIZE
+        }
+        this.dispatchGraphicEvent("canvasDispatch:OnCurcuitAreaPaste", XY);
+        this.dispatch("ToggleAreaThumbnail", null, "");
       }
     });
     //上一次鼠标实际距离
@@ -267,6 +272,16 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           this.dispatch("ToggleArea", 5, { w, h, start: this.mouseData.mouseDownPoint, end: endPoint, bgColor: "#ff000010", borderColor: "#ff0000" });
           break;
         }
+        case ETools.TOOLS_COPY_AREA: {
+          let endPoint: IRealisticPoint = JSON.parse(JSON.stringify({ x, y }));
+          if (this.BasicAttribute.AREA_GRID_ALIGN) {
+            endPoint = this.realPoint2GridAlignCanvasPoint2RealPoint({ x, y });
+          }
+          const w = endPoint.x - this.mouseData.mouseDownPoint.x;
+          const h = endPoint.y - this.mouseData.mouseDownPoint.y;
+          this.dispatch("ToggleArea", 5, { w, h, start: this.mouseData.mouseDownPoint, end: endPoint, bgColor: "#FFCC3310", borderColor: "#FFCC33" });
+          break;
+        }
       }
     }
     const canvasMouseUpFn = (e: MouseEvent) => {
@@ -290,6 +305,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
         this.currentOptionGraphic = null;
       } else if (this.config.value.mode === ETools.TOOLS_ARROW) {
         this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
+      } else if (this.config.value.mode === ETools.TOOLS_COPY_AREA) {
+        //this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
       }
       const point = this.getCanvasPoint(e);
       this.dispatch("ToggleAreaClose", null, void 0);
@@ -367,7 +384,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           this.currentOptionGraphicTools = null;
           this.dispatch("ToggleCursor", null, { cursor: Cursor.DEFAULT });
         }
-      } else if (this.config.value.mode === ETools.TOOLS_COPY_CIRCUIT) {
+      } else if (this.config.value.mode === ETools.TOOLS_COPY_CIRCUIT || this.config.value.mode === ETools.TOOLS_PASTE_AREA) {
         let start = this.realPoint2GridAlignCanvasFloorPoint({ x, y });
         const end = this.canvasPoint2RealPoint({
           x: start.x + this.BasicAttribute.GRID_STEP_SIZE,
@@ -380,7 +397,28 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           borderColor: "#00ff00", bgColor: "#00ff0010"
         });
       }
+    });
+
+    window.addEventListener("keydown", e => {
+
+      if (e.code === "KeyZ" && e.ctrlKey) {
+        this.undo();
+      } else if (e.code === "KeyY" && e.ctrlKey) {
+        this.redo();
+      } else if (e.code === "KeyS" && e.ctrlKey) {
+        //ElMessage.success("保存成功");
+      }
     })
+  }
+
+  undo() {
+    this.dispatchGraphicEvent("canvasDispatch:UndoSnapShot", undefined);
+    this.reloadCanvas();
+  }
+
+  redo() {
+    this.dispatchGraphicEvent("canvasDispatch:RedoSnapShot", undefined);
+    this.reloadCanvas();
   }
 
   initGraphics() {

@@ -4,15 +4,15 @@ import { EGraphicMoveTools } from "./dragItem";
 // 图形一般方法
 export interface IGraphic {
   draw: () => void;
-  snapShot?: () => void;                              //保存版本快照
-  snapShotStack?: [];                                 //快照栈
-  undoSnapShot?: () => void;                          //恢复快照
   graphicConfig?: IGraphicConfig;                     //图形配置
   pointContainer?: (x: number, y: number) => boolean;                             //判断点是否在图形内部
   translate?: (start: IRealisticPoint, end: IRealisticPoint) => void;             //图形位移
   getBoundaryRect?: () => GraphicRect,            //图形外接矩形
   setBoundaryRect?: (rect: GraphicRect) => void,   //设置图形外接矩形
   clone?: () => canvasGraphic;
+  snapShot ?: () => void;                         //保存快照
+  undoSnapShotStack ?: any[];                          //撤销栈
+  redoSnapShotStack ?: any[];                          //恢复栈
 }
 
 export interface IGraphicTools {
