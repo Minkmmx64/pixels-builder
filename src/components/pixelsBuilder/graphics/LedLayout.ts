@@ -100,46 +100,46 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
   }
 
   deleteAreaIntersection(areaStart: Point, areaEnd: Point, pos: ERelaPosition) {
+
     const layoutBegin = this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.beginPoint);
     const layoutEnd = { x: layoutBegin.x + this.width, y: layoutBegin.y + this.height };
     const { start, end } = this.pixelsBuilder.mathUtils.findVerticalIntersectionArea({ start: areaStart, end: areaEnd }, { start: layoutBegin, end: layoutEnd });
     if (start.x < end.x && start.y < end.y) {
-      if (this.ledLayoutSetting) {
-        let links = this.getPointLists(start, end, this.ledLayoutSetting.lineAction, pos);
-        //删除操作保存记录
-        if (links.length) {
-          this.snapShot();
-        }
-        links.forEach(link => {
-          const pointHashCode = this.getPointHash(link.x, link.y);
-          const nodes = this.ledPointHashCollection.get(pointHashCode) ?? [];
-          for (const node of nodes) {
-            const doubleLinkedList = this.ledLinkedListMasterCollection.get(node.data.controller)!;
-            if (node.next == null) {
-              if (doubleLinkedList.tail)
-                doubleLinkedList.tail = doubleLinkedList.tail.pre;
-              if (doubleLinkedList.tail)
-                doubleLinkedList.tail.next = null;
-              else doubleLinkedList.head = doubleLinkedList.tail = null;
-            } else if (node.pre == null) {
-              if (doubleLinkedList.head)
-                doubleLinkedList.head = doubleLinkedList.head.next;
-              if (doubleLinkedList.head)
-                doubleLinkedList.head.pre = null;
-              else doubleLinkedList.head = doubleLinkedList.tail = null;
-            } else {
-              node.pre.next = node.next;
-              node.next.pre = node.pre;
-            }
-            doubleLinkedList.size--;
-            this.dispatch("LedSelected", null, { no: node.data.controller, size: doubleLinkedList.size });
+      let links = this.getPointLists(start, end, ELineAction.SINGULAR_ROW_PRIOR, pos);
+      //删除操作保存记录
+      if (links.length) {
+        this.snapShot();
+      }
+      links.forEach(link => {
+        const pointHashCode = this.getPointHash(link.x, link.y);
+        const nodes = this.ledPointHashCollection.get(pointHashCode) ?? [];
+        console.log(nodes);
+        for (const node of nodes) {
+          const doubleLinkedList = this.ledLinkedListMasterCollection.get(node.data.controller)!;
+          if (node.next == null) {
+            if (doubleLinkedList.tail)
+              doubleLinkedList.tail = doubleLinkedList.tail.pre;
+            if (doubleLinkedList.tail)
+              doubleLinkedList.tail.next = null;
+            else doubleLinkedList.head = doubleLinkedList.tail = null;
+          } else if (node.pre == null) {
+            if (doubleLinkedList.head)
+              doubleLinkedList.head = doubleLinkedList.head.next;
+            if (doubleLinkedList.head)
+              doubleLinkedList.head.pre = null;
+            else doubleLinkedList.head = doubleLinkedList.tail = null;
+          } else {
+            node.pre.next = node.next;
+            node.next.pre = node.pre;
           }
-          this.ledPointHashCollection.delete(pointHashCode);
-          this.ledCoordinate.delete(pointHashCode);
-        });
-        if (links.length) {
-          this.pixelsBuilder.reloadCanvas();
+          doubleLinkedList.size--;
+          this.dispatch("LedSelected", null, { no: node.data.controller, size: doubleLinkedList.size });
         }
+        this.ledPointHashCollection.delete(pointHashCode);
+        this.ledCoordinate.delete(pointHashCode);
+      });
+      if (links.length) {
+        this.pixelsBuilder.reloadCanvas();
       }
     }
   }
