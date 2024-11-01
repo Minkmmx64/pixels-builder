@@ -113,7 +113,6 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
       links.forEach(link => {
         const pointHashCode = this.getPointHash(link.x, link.y);
         const nodes = this.ledPointHashCollection.get(pointHashCode) ?? [];
-        console.log(nodes);
         for (const node of nodes) {
           const doubleLinkedList = this.ledLinkedListMasterCollection.get(node.data.controller)!;
           if (node.next == null) {
