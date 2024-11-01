@@ -1,5 +1,7 @@
-import { ICanvasPoint, IFunctionInterFace, IGraphicPatch, IRealisticPoint } from "../pixel.type";
+import { ICanvasPoint, IFunctionInterFace, IGraphicPatch, IRealisticPoint, Value } from "../pixel.type";
 import { EGraphicMoveTools } from "./dragItem";
+
+export type IGraphicSets = "LedLayout" | "Image";
 
 // 图形一般方法
 export interface IGraphic {
@@ -10,9 +12,12 @@ export interface IGraphic {
   getBoundaryRect?: () => GraphicRect,            //图形外接矩形
   setBoundaryRect?: (rect: GraphicRect) => void,   //设置图形外接矩形
   clone?: () => canvasGraphic;
-  snapShot ?: () => void;                         //保存快照
-  undoSnapShotStack ?: any[];                          //撤销栈
-  redoSnapShotStack ?: any[];                          //恢复栈
+  snapShot?: () => void;                         //保存快照
+  undoSnapShotStack?: any[];                          //撤销栈
+  redoSnapShotStack?: any[];                          //恢复栈
+  //导入,导出
+  import?: () => void;
+  export?: () => Promise<IExportObject> | IExportObject;
 }
 
 export interface IGraphicTools {
@@ -39,3 +44,8 @@ export type GraphicRect = { width: number, height: number, begin: ICanvasPoint }
 export type canvasGraphic = IGraphic & IFunctionInterFace<IGraphicPatch>;
 
 export type GraphicTools = IGraphic & IFunctionInterFace<IGraphicPatch> & IGraphicTools;
+
+export interface IExportObject {
+  type: IGraphicSets,
+  data: Record<string, Value>;
+}

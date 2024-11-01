@@ -1,6 +1,7 @@
+import { UploadRawFile } from "element-plus";
 import { IAreaCHoose, ICanvasPoint, IRealisticPoint } from "../../pixel.type";
 import { PixelsBuilder } from "../../pixelsBuilder";
-import { canvasGraphic, GraphicRect, IGraphicConfig } from "../graphics";
+import { canvasGraphic, GraphicRect, IExportObject, IGraphicConfig } from "../graphics";
 
 export class ImageGraphic implements canvasGraphic {
 
@@ -18,14 +19,14 @@ export class ImageGraphic implements canvasGraphic {
     //图片宽高 网格像素
     public width: number, public height: number,
     //图片数据源
-    public src: string,
+    public src: UploadRawFile | Blob,
     public pixelsBuilder: PixelsBuilder
   ) {
     const image = new Image();
     const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
     image.width = this.width * grid;
     image.height = this.height * grid;
-    image.src = this.src;
+    image.src = URL.createObjectURL(this.src);
     image.onload = () => {
       this.onloaded = true;
       this.draw();
@@ -42,11 +43,22 @@ export class ImageGraphic implements canvasGraphic {
     const begin = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(param.areaStart);
     const end = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(param.areaEnd);
     const { begin: S, width, height } = this.getBoundaryRect();
-    console.log(this);
     if (begin.x <= S.x && begin.y <= S.y && (end.x >= (S.x + width) && end.y >= (S.y + height))) {
       this.pixelsBuilder.removeGraphic(this);
     }
   };
+
+  async export(): Promise<IExportObject> {
+    return {
+      type: "Image",
+      data: {
+        begin: JSON.parse(JSON.stringify(this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.begin))),  //像素坐标
+        width: this.width,
+        height: this.height,
+        src: await new Blob([this.src]).arrayBuffer()
+      }
+    }
+  }
 
   setBoundaryRect(rect: GraphicRect) {
     const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;

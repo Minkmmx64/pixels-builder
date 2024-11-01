@@ -12,8 +12,11 @@
     "useDefineForClassFields": true,
     "sourceMap": true,
     "baseUrl": ".",
+    "noEmit": true,
     "types": [
-      "webpack-env"
+      "webpack-env",
+      "electron",
+      "node"
     ],
     "paths": {
       "@/*": [

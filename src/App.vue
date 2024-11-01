@@ -4,10 +4,13 @@
 
 <script lang="ts" setup>
 import { onMounted } from 'vue';
+import { useElectron } from "@/store/index.store";
 
-
+const env = useElectron();
 onMounted(() => {
-
+  if (window.IPC) {
+    env.environment = "node-electron";
+  } else env.environment = "window";
 })
 </script>
 

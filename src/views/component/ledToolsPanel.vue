@@ -1,6 +1,14 @@
 <template>
   <div class="ledToolsPanel">
-    <div @click="showDialogCreate = true" class="create_led">新建</div>
+    <div class="led_operate">
+      <el-button @click="showDialogCreate = true" type="success">新建</el-button>
+      <ElectronProp>
+        <el-button @click="Emit('ledExport')" type="warning">导出</el-button>
+      </ElectronProp>
+      <ElectronProp>
+        <el-button @click="Emit('ledImport')" type="primary">导入</el-button>
+      </ElectronProp>
+    </div>
     <div class="led_setting">
       <div class="line-action">
         <fieldset>
@@ -78,6 +86,8 @@ import { ILayoutSetting } from '@/components/pixelsBuilder/graphics/LedLayout';
 interface IEmit {
   (event: 'createLedLayout', param: { width: number, height: number }): void;
   (event: 'setLedSetting', param: ILayoutSetting): void;
+  (event: "ledExport"): void;
+  (event: "ledImport"): void;
 }
 
 const Emit = defineEmits<IEmit>();
@@ -134,6 +144,12 @@ defineExpose({
   padding: 5px;
   flex-direction: column;
   gap: 10px;
+
+  .led_operate {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
 
   .create-dialog {
     gap: 10px;

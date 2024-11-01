@@ -1,8 +1,8 @@
 <template>
   <div class="box">
     <div class="left_panel">
-      <ledToolsPanel ref="ledToolsPanelRef" v-model:ledControllers="ledControllers" @setLedSetting="setLedSetting"
-        @createLedLayout="createLedLayout" />
+      <ledToolsPanel ref="ledToolsPanelRef" v-model:ledControllers="ledControllers" @ledImport="ledImport"
+        @ledExport="ledExport" @setLedSetting="setLedSetting" @createLedLayout="createLedLayout" />
     </div>
     <div class="canvas_panel" v-loading="canvasLoading">
       <canvas ref="pixels" :style="{
@@ -69,6 +69,34 @@
         </span>
       </template>
     </el-dialog>
+    <el-dialog v-model="showExportConfig" title="导出配置" width="500" center>
+      <el-form ref="ruleFormRef" :model="exportForm" :rules="exportRules" label-width="120px" class="demo-ruleForm"
+        status-icon>
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="exportForm.name" />
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input v-model="exportForm.description" />
+        </el-form-item>
+        <el-form-item label="保存文件名称" prop="filename">
+          <el-input v-model="exportForm.filename">
+            <template #append>.tar</template>
+          </el-input>
+        </el-form-item>
+        <el-form-item>
+          <div>
+            <el-button @click="chooseExportDest" type="primary">保存目录</el-button>
+            <div>{{ exportDest }}</div>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="showExportConfig = false">取消</el-button>
+          <el-button type="primary" @click="handleExportConfig">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -78,11 +106,17 @@ import { ITools, Point } from "@/components/pixelsBuilder/pixel.type";
 import { PixelsBuilder } from "@/components/pixelsBuilder/pixelsBuilder";
 import { computed, onMounted, reactive, Ref, ref, unref, useTemplateRef } from "vue";
 import ledToolsPanel from "./component/ledToolsPanel.vue";
-import { ILayoutSetting, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
+import { ILayoutSetting, ILedLayoutSaveData, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
 import { ILedControllers } from "./index.type";
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage, type UploadProps, type UploadRawFile } from 'element-plus'
+import { ElMessage, FormInstance, FormRules, type UploadProps, type UploadRawFile } from 'element-plus'
 import { ImageGraphic } from "@/components/pixelsBuilder/graphics/Image/Image";
+import { IExportObject } from "@/components/pixelsBuilder/graphics/graphics";
+interface IExportForm {
+  name: string;
+  description: string;
+  filename: string;
+}
 
 const pixels = useTemplateRef("pixels");
 const ledToolsPanelRef = useTemplateRef("ledToolsPanelRef");
@@ -101,6 +135,7 @@ const tools: Ref<ITools[]> = ref([
 const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
 const cursor = ref<Cursor>(Cursor.DEFAULT);
 const showDialogCreateImage = ref(false);
+const showExportConfig = ref(false);
 const imageUrl = ref("");
 const info = ref({ translate: { x: 0, y: 0 }, backGround: "#ffffff" });
 const ledPasteImageUrl = ref("");
@@ -177,15 +212,10 @@ const createLedLayout = (param: { width: number, height: number }) => {
   ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!, useLedLayoutConfig);
   pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value, priority: 999999999 });
   ledToolsPanelRef.value?.clearLedSelected();
-  ledLayout.value.on("LedSelected", ({ no, size }) => {
-    ledToolsPanelRef.value?.setLedSelected(no, size);
-  });
-  ledLayout.value.on("ClearLedSelected", () => {
-    ledToolsPanelRef.value?.clearLedSelected();
-  });
-  ledLayout.value.on("LedSelectedNo", led => {
-    ledToolsPanelRef.value?.handleSelectLedController(led);
-  });
+  ledLayout.value.on("LedSelected", ({ no, size }) => ledToolsPanelRef.value?.setLedSelected(no, size));
+  ledLayout.value.on("ClearLedSelected", () => ledToolsPanelRef.value?.clearLedSelected());
+  ledLayout.value.on("LedSelectedNo", led => ledToolsPanelRef.value?.handleSelectLedController(led)
+  );
 }
 const uploadFile = ref<UploadRawFile | null>(null);
 const beforeAvatarUpload: UploadProps['beforeUpload'] = (e) => {
@@ -194,9 +224,9 @@ const beforeAvatarUpload: UploadProps['beforeUpload'] = (e) => {
   return false;
 }
 const handleCreateImage = () => {
-  if (!ledLayout.value) return;
+  if (!ledLayout.value || !uploadFile.value) return;
   pixelsBuilder.value?.addGraphic(
-    { id: "auto", graphic: new ImageGraphic(JSON.parse(JSON.stringify(ledLayout.value?.beginPoint)), 5, 5, imageUrl.value, pixelsBuilder.value!) }
+    { id: "auto", graphic: new ImageGraphic(JSON.parse(JSON.stringify(ledLayout.value?.beginPoint)), 5, 5, uploadFile.value, pixelsBuilder.value!) }
   )
   showDialogCreateImage.value = false;
   imageUrl.value = "";
@@ -216,6 +246,73 @@ const initLedController = (leds: number, star: number) => {
     ledControllers.value.push(...ret);
     initLedController(leds - n, star + n);
   });
+}
+//导入
+const ledImport = () => {
+  let options: Electron.OpenDialogOptions = {
+    filters: [{ extensions: ["tar"], name: ".tar" }]
+  }
+  window.IPC.send("fileSelectExt", { title: "选择导入文件", filter: options.filters });
+  window.IPC.once("fileSelectExt", async (_, res) => {
+    if (res[0]) {
+      try {
+        pixelsBuilder.value!.graphics = [];
+        pixelsBuilder.value!.transform.translate = { x: 0, y: 0 }
+        pixelsBuilder.value!.transform.scale = 4;
+        const data = await window.IPC.invoke("ledImport", res[0]) as IExportObject[];
+        const ledLayoutData = data.find(_ => _.type === "LedLayout");
+        pixelsBuilder.value?.import(data.filter(_ => _.type !== "LedLayout"));
+        if (ledLayoutData) {
+          createLedLayout({ width: ledLayoutData.data.width, height: ledLayoutData.data.height });
+          ledLayout.value?.loadLedLayoutConfig(ledLayoutData.data as ILedLayoutSaveData);
+        }
+      } catch (error) {
+        ElMessage.error("文件格式错误");
+      }
+    }
+  });
+}
+const exportForm = ref<IExportForm>({
+  name: "",
+  description: "",
+  filename: ""
+});
+const exportFormRef = useTemplateRef<FormInstance>("ruleFormRef");
+const exportRules = reactive<FormRules<IExportForm>>({
+  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+  description: [{ required: true, message: "请输入描述" }],
+  filename: [{ required: true, message: "请输入文件名称" }]
+});
+const exportDest = ref("");
+const chooseExportDest = () => window.IPC.send("dirSelect", { title: "选择导出目录", eventReg: "selectExportDir" });
+window.IPC.on("selectExportDir", async (_, dirPath) => exportDest.value = dirPath);
+const ledExport = async () => {
+  const data = await pixelsBuilder.value?.export();
+  if (!data?.length) {
+    ElMessage.error("请创建ledLayout");
+    return;
+  }
+  showExportConfig.value = true;
+}
+const handleExportConfig = async () => {
+  const data = await pixelsBuilder.value?.export();
+  if (!data?.length) {
+    ElMessage.error("请创建ledLayout");
+    return;
+  }
+  await exportFormRef.value?.validate(async (valid, fields) => {
+    if (valid && exportDest.value) {
+      const ledLayoutData = data.find(_ => _.type === "LedLayout");
+      if (ledLayoutData?.data) {
+        ledLayoutData.data.name = exportForm.value.name;
+        ledLayoutData.data.description = exportForm.value.description;
+      }
+      await window.IPC.invoke("ledExport", { dest: exportDest.value, data, filename: exportForm.value.filename });
+      showExportConfig.value = false;
+      ElMessage.success("导出成功");
+    }
+  })
+
 }
 onMounted(() => {
   initLedController(512, 0);

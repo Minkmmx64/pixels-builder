@@ -1,7 +1,7 @@
 import { DoubleLinkedNode, DoubleLinkedLists } from "@/components/dataStructure/DoubleLinkedList";
 import { IAreaCHoose, ICanvasPoint, Point } from "../pixel.type";
 import { PixelsBuilder } from "../pixelsBuilder";
-import { canvasGraphic } from "./graphics";
+import { canvasGraphic, IExportObject } from "./graphics";
 import { Led } from "./led/led";
 import { Cursor, ELineAction, ERelaPosition } from "../enum";
 import { Listener } from "../pixelsListener";
@@ -171,7 +171,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
         doubleLinkedLists.size++;
       } else {
         //是否需要判断当前有没有超出阈值
-        if (doubleLinkedLists.size + 1 > this.ledLayoutSetting.thresholdPoints && !CheckThresholdPoints) {
+        if (!CheckThresholdPoints && doubleLinkedLists.size + 1 > this.ledLayoutSetting.thresholdPoints) {
           this.dispatch("LedSelected", null, { no: doubleLinkedLists.no, size: doubleLinkedLists.size });
           //寻找下一个配置
           const ledConfig = this.loadNextLedLayoutConfig();
@@ -262,7 +262,15 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     ret.width = width, ret.height = height;
     ret.name = "name", ret.ports = ports;
     ret.lines = lines, ret.lednum = lednum;
+    ret.type = "dn";
     return ret;
+  }
+
+  export(): IExportObject {
+    return {
+      type: "LedLayout",
+      data: this.saveLedLayoutConfig()
+    }
   }
 
   loadLedLayoutConfig(data: ILedLayoutSaveData) {
@@ -558,9 +566,10 @@ interface ILedCopyArea {
   points: Point[];
 }
 
-interface ILedLayoutSaveData {
+export interface ILedLayoutSaveData {
   name: string,
-  ports: number,                   //线路数
+  description: string,
+  ports: number,              //线路数
   linestyle: unknown,
   width: number,              //画布宽高
   height: number,
@@ -572,8 +581,4 @@ interface ILedLayoutSaveData {
   }[],
   type: "dn",                 //类型
   lednum: number,             //总led数,
-  description: string,
-  pid: "31d2ba3e-034a-4c67-8609-78a8574ac04d",
-  id: number,
-  uuid: "f5e27107-a738-4fe2-b9fb-c94cda87d336"
 }
