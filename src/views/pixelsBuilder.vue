@@ -285,7 +285,7 @@ const exportRules = reactive<FormRules<IExportForm>>({
 });
 const exportDest = ref("");
 const chooseExportDest = () => window.IPC.send("dirSelect", { title: "选择导出目录", eventReg: "selectExportDir" });
-window.IPC.on("selectExportDir", async (_, dirPath) => exportDest.value = dirPath);
+//window.IPC.on("selectExportDir", async (_, dirPath) => exportDest.value = dirPath);
 const ledExport = async () => {
   const data = await pixelsBuilder.value?.export();
   if (!data?.length) {

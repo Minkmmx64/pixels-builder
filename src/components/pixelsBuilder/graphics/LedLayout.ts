@@ -365,7 +365,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
       ret.push(p.data);
       p = p.next;
     }
-    return ret.map(led => JSON.parse(JSON.stringify(this.pixelsBuilder.cavnasPoint2GridPixelsPoint(led.center))));
+    return ret.map(led => JSON.parse(JSON.stringify(this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.pixelsBuilder.realPoint2GridAlignCanvasFloorPoint(this.pixelsBuilder.canvasPoint2RealPoint(led.center))))));
   }
 
   copyCircuit(no: number) {
@@ -483,14 +483,13 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
               noSet.add(no);
               if (master && master.head) {
                 let nodeLists = this.LinkedListsToArray(master);
-                nodeLists = nodeLists.filter(({ x, y }) => x >= start.x && y >= start.y && x <= end.x && y <= end.y);
+                nodeLists = nodeLists.filter(({ x, y }) => x >= start.x && y >= start.y && x < end.x && y < end.y);
                 ret.push({ no, setting: JSON.parse(JSON.stringify(master.head.data.ledSetting)), points: nodeLists })
               }
             }
           }
         }
       }
-
       //获取当前区域的位图
       const canvasStart = this.pixelsBuilder.canvasPoint2RealPoint(this.pixelsBuilder.gridPixelsPoint2CanvasPoint(start))
       const canvasEnd = this.pixelsBuilder.canvasPoint2RealPoint(this.pixelsBuilder.gridPixelsPoint2CanvasPoint(end));
@@ -512,8 +511,8 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
   onCurcuitAreaPaste(point: Point | undefined) {
     if (point && this.pointInteraction(point)) {
       const diff: Point = {
-        x: point.x - this.copyPrototype.begin.x - 1,
-        y: point.y - this.copyPrototype.begin.y - 1
+        x: point.x - this.copyPrototype.begin.x ,
+        y: point.y - this.copyPrototype.begin.y 
       }
       for (let i = 0; i < this.copyPrototype.copyAreaStack.length; i++) {
         const data = this.copyPrototype.copyAreaStack[i];
