@@ -254,7 +254,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     for (const [_, node] of this.ledLinkedListMasterCollection) {
       ports++, lednum += node.size;
       const points = this.LinkedListsToArray(node).map(p => {
-        return { x: p.x - diff.x - 1, y: p.y - diff.y - 1 }
+        return { x: p.x - diff.x, y: p.y - diff.y }
       });
       lines.push({ lednum: node.size, bulbs: points, no: node.no, color: node.head?.data.ledSetting.color! });
     }
@@ -511,8 +511,8 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
   onCurcuitAreaPaste(point: Point | undefined) {
     if (point && this.pointInteraction(point)) {
       const diff: Point = {
-        x: point.x - this.copyPrototype.begin.x ,
-        y: point.y - this.copyPrototype.begin.y 
+        x: point.x - this.copyPrototype.begin.x,
+        y: point.y - this.copyPrototype.begin.y
       }
       for (let i = 0; i < this.copyPrototype.copyAreaStack.length; i++) {
         const data = this.copyPrototype.copyAreaStack[i];
