@@ -4,7 +4,7 @@
       <ledToolsPanel ref="ledToolsPanelRef" v-model:ledControllers="ledControllers" @ledImport="ledImport"
         @ledExport="ledExport" @setLedSetting="setLedSetting" @createLedLayout="createLedLayout" />
     </div>
-    <div class="canvas_panel" v-loading="canvasLoading">
+    <div id="pixelsBuilderCanvas" class="canvas_panel" v-loading="canvasLoading">
       <canvas ref="pixels" :style="{
         cursor: cursor,
         width: '100%',
@@ -106,12 +106,13 @@ import { ITools, Point } from "@/components/pixelsBuilder/pixel.type";
 import { PixelsBuilder } from "@/components/pixelsBuilder/pixelsBuilder";
 import { computed, onMounted, reactive, Ref, ref, unref, useTemplateRef } from "vue";
 import ledToolsPanel from "./component/ledToolsPanel.vue";
-import { ILayoutSetting, ILedLayoutSaveData, LedLayout } from "@/components/pixelsBuilder/graphics/LedLayout";
+import { ILayoutSetting, ILedLayoutSaveData } from "@/components/pixelsBuilder/graphics/LedLayout";
 import { ILedControllers } from "./index.type";
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, FormInstance, FormRules, type UploadProps, type UploadRawFile } from 'element-plus'
 import { ImageGraphic } from "@/components/pixelsBuilder/graphics/Image/Image";
 import { IExportObject } from "@/components/pixelsBuilder/graphics/graphics";
+import { LedLayoutV2 } from "@/components/pixelsBuilder/graphics/LedLayoutV2";
 interface IExportForm {
   name: string;
   description: string;
@@ -128,8 +129,8 @@ const tools: Ref<ITools[]> = ref([
   { label: "添加图片", code: ETools.TOOLS_ADD_IMAGE, icon: require("@/assets/image.png") },
   { label: "复制led选区", code: ETools.TOOLS_COPY_AREA, icon: require("@/assets/copy_area.png") },
   { label: "粘贴led选区", code: ETools.TOOLS_PASTE_AREA, icon: require("@/assets/paste.png") },
-  { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
-  { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
+  // { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
+  // { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
   { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") },
 ]);
 const mode: Ref<ETools> = ref(ETools.TOOLS_ARROW);
@@ -198,7 +199,7 @@ const currentSelectCopyCircuit = ref<number>(1);
 const showDialogCopyCircuit = ref(false);
 const Area = ref({ w: 0, h: 0, left: 0, top: 0, show: false, borderColor: "", bgColor: "" });
 const pixelsBuilder = ref<PixelsBuilder>();
-const ledLayout = ref<LedLayout>();
+const ledLayout = ref<LedLayoutV2>();
 const useConfig = computed(() => reactive({ mode: unref(mode) }));
 const useLedLayoutConfig = computed(() => ledControllers.value);
 const setLedSetting = (setting: ILayoutSetting) => ledLayout.value && ledLayout.value.setLedSetting(setting);
@@ -209,7 +210,10 @@ const handleCopyCorcuit = () => {
   ledLayout.value?.setCircuitCopyTarget(currentSelectCopyCircuit.value, ledControllers.value[currentSelectCopyCircuit.value - 1].color);
 }
 const createLedLayout = (param: { width: number, height: number }) => {
-  ledLayout.value = new LedLayout(param.width, param.height, pixelsBuilder.value!, useLedLayoutConfig);
+  if (ledLayout.value) {
+    ledLayout.value.clear();
+  }
+  ledLayout.value = new LedLayoutV2(param.width, param.height, pixelsBuilder.value!, useLedLayoutConfig);
   pixelsBuilder.value?.addGraphic({ id: "ledPanel", graphic: ledLayout.value, priority: 999999999 });
   ledToolsPanelRef.value?.clearLedSelected();
   ledLayout.value.on("LedSelected", ({ no, size }) => ledToolsPanelRef.value?.setLedSelected(no, size));
@@ -426,6 +430,7 @@ onMounted(() => {
   .canvas_panel {
     position: relative;
     width: 100%;
+    overflow: hidden;
   }
 
   #area {
@@ -444,6 +449,7 @@ onMounted(() => {
   }
 
   .canvas_tools {
+    overflow: hidden;
     user-select: none;
     position: absolute;
     display: flex;

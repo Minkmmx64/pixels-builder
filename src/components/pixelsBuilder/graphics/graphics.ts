@@ -5,7 +5,7 @@ export type IGraphicSets = "LedLayout" | "Image";
 
 // 图形一般方法
 export interface IGraphic {
-  draw: () => void;
+  draw: (type?: Value) => void;
   graphicConfig?: IGraphicConfig;                     //图形配置
   pointContainer?: (x: number, y: number) => boolean;                             //判断点是否在图形内部
   translate?: (start: IRealisticPoint, end: IRealisticPoint) => void;             //图形位移

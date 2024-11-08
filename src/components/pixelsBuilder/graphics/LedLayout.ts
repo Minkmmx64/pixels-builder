@@ -35,10 +35,6 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
   beginPoint !: ICanvasPoint;
   //画布配置信息
   ledLayoutSetting !: ILayoutSetting;
-  //全局Layout信息
-  globalConfig = {
-    COVERABLE: true,  //是否可以覆盖在点上
-  }
   //线路复制栈
   circuitStack: { diff: Point[], no: number }[] = [];
   //线路复制目标编号

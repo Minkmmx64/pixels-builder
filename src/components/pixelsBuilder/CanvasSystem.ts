@@ -22,7 +22,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   mathUtils !: Mathematic;
   //画布2d变换
   transform = {
-    scale: 4,
+    scale: 1,
     translate: { x: 0, y: 0 }
   }
   //画布基础属性
@@ -334,7 +334,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
        */
       if (direct > 0) this.transform.scale = Math.min(this.BasicAttribute.MAX_SCALE_SIZE, this.transform.scale + 0.1);
       else this.transform.scale = Math.max(this.transform.scale - 0.1, this.BasicAttribute.MIN_SCALE_SIZE);
-      this.reloadCanvas();
+      this.reloadCanvas("wheel");
     });
 
     this.canvas.addEventListener("contextmenu", e => {
@@ -421,11 +421,11 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.reloadCanvas();
   }
 
-  initGraphics() {
+  initGraphics(type ?: Value) {
     this.graphics.sort((a, b) => ((a.priority ?? 0) - (b.priority ?? 0)));
     this.graphics = this.graphics.filter(g => !g.isremoved);
     requestAnimationFrame(() => {
-      this.graphics.forEach(g => g.graphic.draw());
+      this.graphics.forEach(g => g.graphic.draw(type));
       this.graphicsTools.forEach(g => g.graphic.draw());
     });
   }
@@ -447,10 +447,10 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.reloadCanvas();
   }
 
-  reloadCanvas() {
+  reloadCanvas(type?: Value) {
     this.clearCanvas();
     this.initGridSystem();
-    this.initGraphics();
+    this.initGraphics(type);
   }
 
   //屏幕坐标 -> 画布坐标

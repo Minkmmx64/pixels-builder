@@ -281,4 +281,26 @@ export class Mathematic {
     }
     return ret;
   }
+
+
+  //包围所有点的最小矩形
+  EncloseMiniPointsRect(points: Point[]): { begin: Point, end: Point } {
+    let sx = 0x3f3f3f3f, sy = 0x3f3f3f3f, ex = 0, ey = 0;
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      sx = Math.min(sx, p.x);
+      sy = Math.min(sy, p.y);
+      ex = Math.max(ex, p.x);
+      ey = Math.max(ey, p.y);
+    }
+    return { begin: { x: sx, y: sy }, end: { x: ex, y: ey } };
+  }
+
+  //点相减
+  div(X: Point, Y: Point): Point {
+    return {
+      x: X.x - Y.x,
+      y: X.y - Y.y
+    }
+  }
 }
