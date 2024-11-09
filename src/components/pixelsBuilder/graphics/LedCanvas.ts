@@ -80,24 +80,26 @@ export class LedCanvas implements canvasGraphic {
     ctx.scale(this.pixelsBuilder.transform.scale, this.pixelsBuilder.transform.scale);
     const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
     const space = 0.8;
-    ctx.beginPath();
-    const ledPoints = this.linkedToArray();
-    for (let i = 0; i < ledPoints.length; i++) {
-      const X = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(ledPoints[i]);
-      const Y = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(this.offset);
-      const begin = this.pixelsBuilder.mathUtils.div(X, Y);
-      const rect = grid - 2 * grid * (1 - space);
+    requestAnimationFrame(() => {
+      ctx.beginPath();
       ctx.fillStyle = this.ledColor;
-      ctx.fillRect(begin.x + grid * (1 - space), begin.y + grid * (1 - space), rect, rect);
+      const ledPoints = this.linkedToArray();
+      for (let i = 0; i < ledPoints.length; i++) {
+        const X = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(ledPoints[i]);
+        const Y = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(this.offset);
+        const begin = this.pixelsBuilder.mathUtils.div(X, Y);
+        const rect = grid - 2 * grid * (1 - space);
+        ctx.fillRect(begin.x + grid * (1 - space), begin.y + grid * (1 - space), rect, rect);
+        // const text = '' + (i + 1);
+        // ctx.font = `${Math.floor(grid * 0.66)}px serif`;
+        // const { width, actualBoundingBoxAscent, actualBoundingBoxDescent } = ctx.measureText(text);
+        // const height = Math.floor(actualBoundingBoxAscent + actualBoundingBoxDescent);
+        // ctx.fillStyle = "#000000";
+        // ctx.fillText(text, Math.floor(begin.x + width / 2), Math.floor(begin.y + height * 1.5 + 2));
+      }
       ctx.fill();
-      // const text = '' + (i + 1);
-      // ctx.font = `${Math.floor(grid * 0.66)}px serif`;
-      // const { width, actualBoundingBoxAscent, actualBoundingBoxDescent } = ctx.measureText(text);
-      // const height = Math.floor(actualBoundingBoxAscent + actualBoundingBoxDescent);
-      // ctx.fillStyle = "#000000";
-      // ctx.fillText(text, Math.floor(begin.x + width / 2), Math.floor(begin.y + height * 1.5 + 2));
-    }
-    ctx.closePath();
+      ctx.closePath();
+    });
   }
 
   linkedToArray() {
