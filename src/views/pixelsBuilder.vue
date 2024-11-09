@@ -2,7 +2,8 @@
   <div class="box">
     <div class="left_panel">
       <ledToolsPanel ref="ledToolsPanelRef" v-model:ledControllers="ledControllers" @ledImport="ledImport"
-        @ledExport="ledExport" @setLedSetting="setLedSetting" @createLedLayout="createLedLayout" />
+        @highLight="ledCanvasHighLight" @ledExport="ledExport" @setLedSetting="setLedSetting"
+        @deleteCircuit="deleteCircuit" @createLedLayout="createLedLayout" />
     </div>
     <div id="pixelsBuilderCanvas" class="canvas_panel" v-loading="canvasLoading">
       <canvas ref="pixels" :style="{
@@ -174,12 +175,13 @@ const toggleMode = (e: ETools) => {
       cursor.value = Cursor.COPY;
       break;
     case ETools.TOOLS_PASTE_AREA:
-      if (!ledLayout.value?.copyPrototype.copyAreaThumbnail || !ledLayout.value.copyPrototype.copyAreaStack.length) {
+      if (!ledLayout.value?.copyPrototype.copyAreaThumbnail) {
         ElMessage.error("请复制一条区域");
         return;
       }
-      mode.value = e;
-      cursor.value = Cursor.COPY;
+      //mode.value = e;
+      //cursor.value = Cursor.COPY;
+      ledLayout.value.onCurcuitAreaPaste();
       break;
     case ETools.TOOLS_COPY_CIRCUIT:
       if (!ledLayout.value) {
@@ -205,9 +207,10 @@ const useLedLayoutConfig = computed(() => ledControllers.value);
 const setLedSetting = (setting: ILayoutSetting) => ledLayout.value && ledLayout.value.setLedSetting(setting);
 const ledControllers = ref<ILedControllers[]>([]);
 const handleCopyCorcuit = () => {
-  mode.value = ETools.TOOLS_COPY_CIRCUIT;
+  //mode.value = ETools.TOOLS_COPY_CIRCUIT;
   showDialogCopyCircuit.value = false;
   ledLayout.value?.setCircuitCopyTarget(currentSelectCopyCircuit.value, ledControllers.value[currentSelectCopyCircuit.value - 1].color);
+  ledLayout.value?.onCurcuitCopy();
 }
 const createLedLayout = (param: { width: number, height: number }) => {
   if (ledLayout.value) {
@@ -316,7 +319,12 @@ const handleExportConfig = async () => {
       ElMessage.success("导出成功");
     }
   })
-
+}
+const ledCanvasHighLight = (led: ILedControllers) => {
+  ledLayout.value?.ledCanvasHighLight(led.no);
+}
+const deleteCircuit = (led: ILedControllers) => {
+  ledLayout.value?.deleteCanvasLayout(led.no);
 }
 onMounted(() => {
   initLedController(512, 0);
@@ -441,6 +449,7 @@ onMounted(() => {
   }
 
   .info {
+    user-select: none;
     position: absolute;
     bottom: 10px;
     left: 10px;
@@ -461,7 +470,7 @@ onMounted(() => {
     width: 600px;
     height: 40px;
     border-radius: 60px;
-    z-index: 1000;
+    z-index: 3000;
     box-shadow: 2px 2px 2px 2px rgba(200, 200, 200, 0.6),
       -2px 2px 2px 2px rgba(200, 200, 200, 0.6),
       2px -2px 2px 2px rgba(200, 200, 200, 0.6),

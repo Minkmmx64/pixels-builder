@@ -303,4 +303,11 @@ export class Mathematic {
       y: X.y - Y.y
     }
   }
+  //相加
+  add(X: Point, Y: Point): Point {
+    return {
+      x: X.x + Y.x,
+      y: X.y + Y.y
+    }
+  }
 }

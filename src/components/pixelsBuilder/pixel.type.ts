@@ -55,6 +55,8 @@ export interface IGraphicPatch {
   redoSnapShot ?: undefined;
   //撤销
   undoSnapShot ?: undefined;
+  //拖动ledCanvas
+  ledCanvasDrag ?: MouseEvent;
 }
 
 export type IFunctionInterFace<T> = {

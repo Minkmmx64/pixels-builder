@@ -955,6 +955,11 @@
   resolved "https://registry.npmmirror.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
+"@imengyu/vue3-context-menu@^1.4.3":
+  version "1.4.3"
+  resolved "https://registry.npmmirror.com/@imengyu/vue3-context-menu/-/vue3-context-menu-1.4.3.tgz"
+  integrity sha512-W2rT+xllLSg+u/Z36jE+mrjzO8gCIw0YDDyBxywuASmwrBotU4deftW8Zz9GK/QEHBRNyV5nBINZJo2J257Wlg==
+
 "@jridgewell/gen-mapping@^0.3.5":
   version "0.3.5"
   resolved "https://registry.npmmirror.com/@jridgewell/gen-mapping/-/gen-mapping-0.3.5.tgz"

@@ -8,6 +8,7 @@ import { Listener } from "../pixelsListener";
 import { ILedControllers } from "@/views/index.type";
 import { ComputedRef, unref } from "vue";
 import { ElMessage } from "element-plus";
+import { copyAreaCanvasResult } from "./LedLayoutV2";
 
 /**
  * 绘制led 面板
@@ -40,7 +41,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
   //线路复制目标编号
   circuitCopyTarget: { target: number, color: string } | undefined;
   //区域复制参数
-  copyPrototype: { copyAreaStack: ILedCopyArea[], copyAreaThumbnail: string, begin: Point } = {
+  copyPrototype: { canvas?: copyAreaCanvasResult[], copyAreaStack?: ILedCopyArea[], copyAreaThumbnail: string, begin: Point } = {
     //区域复制
     copyAreaStack: [],
     //区域缩略图
@@ -282,10 +283,11 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     }
   }
 
-  loadNextLedLayoutConfig() {
+  loadNextLedLayoutConfig(num?: number) {
     const ledControllers = unref(this.LedLayoutConfigRef);
+    const n = num ?? this.ledLayoutSetting.thresholdPoints
     for (const led of ledControllers) {
-      if (led.pixels < this.ledLayoutSetting.thresholdPoints) {
+      if (led.pixels < n) {
         this.dispatch("LedSelectedNo", null, JSON.parse(JSON.stringify(led)));
         return led;
       }
@@ -388,7 +390,7 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
     this.circuitCopyTarget = { target, color };
   }
 
-  onCurcuitCopy(param: Point | undefined) {
+  onCurcuitCopy(param ?: Point | undefined) {
     if (param && this.pointInteraction(param) && this.circuitCopyTarget) {
       const data = this.circuitStack[0];
       //删除目标所有点
@@ -510,8 +512,8 @@ export class LedLayout extends Listener<ILayoutListener> implements canvasGraphi
         x: point.x - this.copyPrototype.begin.x,
         y: point.y - this.copyPrototype.begin.y
       }
-      for (let i = 0; i < this.copyPrototype.copyAreaStack.length; i++) {
-        const data = this.copyPrototype.copyAreaStack[i];
+      for (let i = 0; i < this.copyPrototype.copyAreaStack!.length; i++) {
+        const data = this.copyPrototype.copyAreaStack![i];
         const ledPoints = data.points.map(({ x, y }) => { return { x: x + diff.x, y: y + diff.y } }).filter(_point => this.pointInteraction(_point));
         this.getLedLinksLists(ledPoints, true, data.no, data.setting);
       }

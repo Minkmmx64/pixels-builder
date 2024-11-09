@@ -38,14 +38,14 @@
           <tr :class="{
             'table-row-data-is--activity': selectLedController?.no === item.no
           }" @click="handleSelectLedController(item)" v-for="(item, index) in ledControllers" :key="index">
-            <td align="left">
+            <td @contextmenu="e => contextmenu(e, item)" align="left">
               <div class="led_color" :style="{
                 backgroundColor: item.color
               }"></div>
               <span>{{ item.no }}</span>
             </td>
-            <td>{{ item.pixels }}</td>
-            <td>{{ item.fenController }}</td>
+            <td @contextmenu="e => contextmenu(e, item)">{{ item.pixels }}</td>
+            <td @contextmenu="e => contextmenu(e, item)">{{ item.fenController }}</td>
           </tr>
         </table>
       </div>
@@ -82,12 +82,15 @@ import { ELineAction } from '@/components/pixelsBuilder/enum';
 import { computed, ref, watch } from 'vue';
 import { ILedControllers, ILineAction } from "../index.type";
 import { ILayoutSetting } from '@/components/pixelsBuilder/graphics/LedLayout';
+import ContextMenu from '@imengyu/vue3-context-menu'
 
 interface IEmit {
   (event: 'createLedLayout', param: { width: number, height: number }): void;
   (event: 'setLedSetting', param: ILayoutSetting): void;
   (event: "ledExport"): void;
   (event: "ledImport"): void;
+  (event: "highLight", led: ILedControllers): void;
+  (event: "deleteCircuit", led: ILedControllers): void;
 }
 
 const Emit = defineEmits<IEmit>();
@@ -109,7 +112,10 @@ const handleCreateLedLayout = () => {
 }
 const setLedSelected = (no: number, size: number) => ledControllers.value[no - 1].pixels = size;
 const selectLedController = ref<ILedControllers>();
-const handleSelectLedController = (led: ILedControllers) => selectLedController.value = led;
+const handleSelectLedController = (led: ILedControllers) => {
+  Emit("highLight", led);
+  selectLedController.value = led;
+}
 const clearLedSelected = () => ledControllers.value.forEach(v => v.pixels = 0);
 
 const ledLayoutSetting = computed<ILayoutSetting>(() => {
@@ -127,7 +133,22 @@ const ledLayoutSetting = computed<ILayoutSetting>(() => {
 watch(() => [ledLayoutSetting.value], () => Emit("setLedSetting", ledLayoutSetting.value));
 
 const ledControllers = defineModel<ILedControllers[]>("ledControllers", { required: true });
-
+const contextmenu = (e: MouseEvent, item: ILedControllers) => {
+  e.preventDefault();
+  e.stopPropagation();
+  ContextMenu.showContextMenu({
+    x: e.x,
+    y: e.y,
+    items: [
+      {
+        label: "删除线路",
+        onClick: () => {
+          Emit("deleteCircuit", item);
+        }
+      }
+    ]
+  })
+}
 defineExpose({
   setLedSelected: setLedSelected,
   clearLedSelected: clearLedSelected,

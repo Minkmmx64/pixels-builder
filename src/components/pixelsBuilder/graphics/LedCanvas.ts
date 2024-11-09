@@ -1,7 +1,10 @@
 import { DoubleLinkedLists, DoubleLinkedNode } from "@/components/dataStructure/DoubleLinkedList";
-import { IAreaCHoose, Point } from "../pixel.type";
+import { Point } from "../pixel.type";
 import { PixelsBuilder } from "../pixelsBuilder";
 import { canvasGraphic } from "./graphics";
+import { copyAreaCanvasResult, LedLayoutV2 } from "./LedLayoutV2";
+import { ETools } from "../enum";
+import { unref } from "vue";
 
 export class LedCanvas implements canvasGraphic {
 
@@ -18,25 +21,57 @@ export class LedCanvas implements canvasGraphic {
   ctx !: CanvasRenderingContext2D;
   //相对于ledLayout坐标偏移量
   offset !: Point;
+  //当前是否被选中，选中可以拖动
+  draggable = false; leave = false;
+  //移动数据
+  move = {
+    start: { x: 0, y: 0 },
+    leftTop: { x: 0, y: 0 },
+    diff: { x: 0, y: 0 }
+  }
+  prePoints: Point[] = [];
 
-  constructor(public pixelsBuilder: PixelsBuilder, no: number, color: string) {
+  constructor(public pixelsBuilder: PixelsBuilder, public LedLayoutV2: LedLayoutV2, no: number, color: string) {
     this.ledNo = no;
     this.ledPoints = new DoubleLinkedLists(no);
     this.ledColor = color;
     this.canvas = document.createElement("canvas");
     this.canvas.style.position = "absolute";
+    this.canvas.style.boxSizing = "border-box";
     this.canvas.style.left = "0px", this.canvas.style.right = "0px";
     this.ctx = this.canvas.getContext("2d")!;
     const main = document.querySelector("#pixelsBuilderCanvas");
     main?.appendChild(this.canvas);
-    this.canvas.addEventListener("mousedown", e => { this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("mousedown", e)) });
-    this.canvas.addEventListener("mouseup", e => { this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("mouseup", e)) });
-    this.canvas.addEventListener("mousemove", e => { this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("mousemove", e)) });
-    this.canvas.addEventListener("wheel", e => this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("wheel", e)));
-    this.canvas.addEventListener("contextmenu", e => {
-      e.preventDefault();
-      this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("contextmenu", e));
+
+    const moveCancvas = this.moveCanvas.bind(this);
+    this.canvas.addEventListener("mousedown", e => {
+      //记录当前移动的点
+      this.move.start = this.pixelsBuilder.getCanvasPoint(e);
+      this.prePoints = this.linkedToArray();
+      const leftTop = this.getCanvasLeftTop();
+      this.move.leftTop = { x: leftTop.left, y: leftTop.top };
+      if (this.draggable && unref(this.pixelsBuilder.config).mode === ETools.TOOLS_MOVE) {
+        this.canvas.addEventListener("mousemove", moveCancvas);
+        this.pixelsBuilder.currentIsDragLedCanvas = true;
+        return;
+      } else {
+        this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("mousedown", e))
+      }
     });
+    this.canvas.addEventListener("mouseenter", e => this.leave = false);
+    this.canvas.addEventListener("mouseleave", e => this.leave = true);
+    this.canvas.addEventListener("mousemove", e => this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("mousemove", e)));
+    this.canvas.addEventListener("mouseup", e => {
+      if (this.draggable && unref(this.pixelsBuilder.config).mode === ETools.TOOLS_MOVE) {
+        this.canvas.removeEventListener("mousemove", moveCancvas);
+        this.moveCanvasEnd(e);
+        this.pixelsBuilder.currentIsDragLedCanvas = false;
+        return;
+      }
+      this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("mouseup", e))
+    });
+    this.canvas.addEventListener("wheel", e => { this.pixelsBuilder.canvas.dispatchEvent(new WheelEvent("wheel", e)) });
+    this.canvas.addEventListener("contextmenu", e => { e.preventDefault(); this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("contextmenu", e)) });
   }
 
   draw() {
@@ -90,7 +125,7 @@ export class LedCanvas implements canvasGraphic {
     const leftTop = this.pixelsBuilder.canvasPoint2RealPoint(this.pixelsBuilder.gridPixelsPoint2CanvasPoint(begin));
     this.canvas.style.left = leftTop.x + "px", this.canvas.style.top = leftTop.y + "px";
   }
-  
+
   toLocalCanvas() {
     //需要计算围成点的最小矩形的网格坐标
     const { begin, end } = this.pixelsBuilder.mathUtils.EncloseMiniPointsRect(this.linkedToArray());
@@ -100,7 +135,6 @@ export class LedCanvas implements canvasGraphic {
     this.canvas.height = rightBottom.y - leftTop.y;
     this.canvas.style.left = leftTop.x + "px", this.canvas.style.top = leftTop.y + "px";
     this.offset = begin;
-    //this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   areaSelect() { }
@@ -121,6 +155,59 @@ export class LedCanvas implements canvasGraphic {
         p.tail = p.tail.next;
       }
     }
+    this.ledPoints = p;
     this.ledsize -= size;
+    return size;
+  }
+
+
+  getAreaContainerPoints(areaStart: Point, areaEnd: Point): copyAreaCanvasResult {
+    return {
+      ledNo: this.ledNo,
+      points: this.linkedToArray().filter(_ => _.x >= areaStart.x && _.x < areaEnd.x && _.y >= areaStart.y && _.y < areaEnd.y),
+    }
+  }
+
+  //高亮该画布
+  highlight() {
+    this.canvas.style.border = "1px solid #007aff";
+    this.canvas.style.zIndex = "2000"
+    this.draggable = true;
+  }
+
+  disableHighlight() {
+    this.canvas.style.border = "none";
+    this.canvas.style.zIndex = "1000"
+    this.draggable = false;
+  }
+
+  moveCanvas(point: MouseEvent) {
+    const begin = this.move.start;
+    const end = this.pixelsBuilder.getCanvasPoint(point);
+    const diff = this.pixelsBuilder.mathUtils.div(end, begin);
+    const ret = this.pixelsBuilder.realPoint2GridAlignCanvasPoint2RealPoint({ x: diff.x + this.move.leftTop.x, y: diff.y + this.move.leftTop.y });
+    this.canvas.style.left = `${ret.x}px`;
+    this.canvas.style.top = `${ret.y}px`;
+    const { left: x, top: y } = this.getCanvasLeftTop();
+    const _diff = this.pixelsBuilder.mathUtils.div(this.pixelsBuilder.realPoint2GridPixelsPoint({ x, y }), this.pixelsBuilder.realPoint2GridPixelsPoint(this.move.leftTop));
+    this.move.diff = _diff;
+  }
+
+  moveCanvasEnd(point: MouseEvent) {
+    let p: DoubleLinkedNode<Point> | null = this.ledPoints.head;
+    //之前的点覆盖数-1
+    this.prePoints.map(_ => this.LedLayoutV2.ledCoverMap[this.LedLayoutV2.getPointHash(_.x, _.y)]--);
+    while (p) {
+      p.data = this.pixelsBuilder.mathUtils.add(p.data, this.move.diff);
+      const id = this.LedLayoutV2.getPointHash(p.data.x, p.data.y);
+      this.LedLayoutV2.ledCoverMap[id] = (this.LedLayoutV2.ledCoverMap[id] ?? 0) + 1;
+      p = p.next;
+    }
+  }
+
+  getCanvasLeftTop() {
+    const left = parseFloat(this.canvas.style.left.replace("px", ""));
+    const top = parseFloat(this.canvas.style.top.replace("px", ""));
+    return { left, top };
   }
 }

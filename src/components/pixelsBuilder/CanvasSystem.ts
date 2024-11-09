@@ -3,12 +3,10 @@ import { Cursor, ETools } from "./enum";
 import { canvasGraphic, GraphicRect, Graphics, GraphicTools, IGraphicConfig } from "./graphics/graphics";
 import { Mathematic } from "./math/Mathematic";
 import { ICanvasPoint, ICanvasSystemEvent, IPixelsEventListener, IRealisticPoint, Point, RICanvasConfig, Value } from "./pixel.type";
-
 import { Listener } from "./pixelsListener";
 import { firstLetterToLower } from "./utils/utils";
 import { DragItem, EGraphicMoveTools } from "./graphics/dragItem";
 import { PixelsBuilder } from "./pixelsBuilder";
-import { ElMessage } from "element-plus";
 
 // <typename T = 宿主容器事件 & graphic 图形派发事件 />
 export class CanvasSystem extends Listener<IPixelsEventListener> {
@@ -35,8 +33,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     GRID_COLOR: "rgba(200,200,200,0.3)",
     //网格宽度
     GRID_WIDTH: 0.5,
-    MAX_SCALE_SIZE: 8,
-    MIN_SCALE_SIZE: 0.1,
+    MAX_SCALE_SIZE: 3,
+    MIN_SCALE_SIZE: 0.2,
     //区域选择与网格对齐
     AREA_GRID_ALIGN: true,
     BACKGROUND: "#000000"
@@ -56,6 +54,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   }
   //当前是否正在拖动工具
   currentIsMoveUtils = false;
+  //当前是否拖曳ledCanvas
+  currentIsDragLedCanvas = false;
 
   constructor(node: HTMLCanvasElement, public config: RICanvasConfig) {
     super();
@@ -328,7 +328,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     window.addEventListener("resize", this.reloadCanvas.bind(this));
     this.canvas.addEventListener("wheel", e => {
       const direct = (e as Value).wheelDelta;
-      const { left, right, top, bottom } = this.canvas.getBoundingClientRect();
+      //const { left, right, top, bottom } = this.canvas.getBoundingClientRect();
       /**
        * 添加滚轮调整位移参数......
        */
@@ -396,6 +396,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
           start, end,
           borderColor: "#00ff00", bgColor: "#00ff0010"
         });
+      } else if (this.currentIsDragLedCanvas) {
+        this.dispatchGraphicEvent("canvasDispatch:LedCanvasDrag", e);
       }
     });
 
@@ -421,7 +423,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.reloadCanvas();
   }
 
-  initGraphics(type ?: Value) {
+  initGraphics(type?: Value) {
     this.graphics.sort((a, b) => ((a.priority ?? 0) - (b.priority ?? 0)));
     this.graphics = this.graphics.filter(g => !g.isremoved);
     requestAnimationFrame(() => {
