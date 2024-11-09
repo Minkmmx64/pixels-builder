@@ -34,7 +34,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     //网格宽度
     GRID_WIDTH: 0.5,
     MAX_SCALE_SIZE: 3,
-    MIN_SCALE_SIZE: 0.2,
+    MIN_SCALE_SIZE: 0.1,
     //区域选择与网格对齐
     AREA_GRID_ALIGN: true,
     BACKGROUND: "#000000"
