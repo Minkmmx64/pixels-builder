@@ -28,13 +28,13 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     //是否绘制网格线
     GRID_INITIALIZATION: true,
     //网格步长
-    GRID_STEP_SIZE: 30,
+    GRID_STEP_SIZE: 10,
     //网格颜色
     GRID_COLOR: "rgba(200,200,200,0.3)",
     //网格宽度
     GRID_WIDTH: 0.5,
-    MAX_SCALE_SIZE: 3,
-    MIN_SCALE_SIZE: 0.1,
+    MAX_SCALE_SIZE: 2,
+    MIN_SCALE_SIZE: 0.5,
     //区域选择与网格对齐
     AREA_GRID_ALIGN: true,
     BACKGROUND: "#000000"
@@ -50,7 +50,8 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
   //鼠标起点，中点
   mouseData = {
     mouseDownPoint: { x: 0, y: 0 },
-    mouseMovePoint: { x: 0, y: 0 }
+    mouseMovePoint: { x: 0, y: 0 },
+    originmouseDownPoint: { x: 0, y: 0 }
   }
   //当前是否正在拖动工具
   currentIsMoveUtils = false;
@@ -208,6 +209,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       this.canvas.addEventListener("mousemove", canvasMouseMove);
       this.mouseData.mouseDownPoint = { x, y };
       this.mouseData.mouseMovePoint = { x, y };
+      this.mouseData.originmouseDownPoint = { x, y };
       preMousePoint.x = x, preMousePoint.y = y;
       if (this.BasicAttribute.AREA_GRID_ALIGN) {
         const newPoint = this.realPoint2GridAlignCanvasPoint2RealPoint(this.mouseData.mouseDownPoint);
@@ -316,7 +318,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
       }
       const startPoint = this.realPoint2GridAlignCanvasPoint(this.mouseData.mouseDownPoint);
       //获取画布坐标
-      this.dispatch("ToggleAreaEnd", null, { start: startPoint, end: endPoint })
+      this.dispatch("ToggleAreaEnd", null, { start: startPoint, end: endPoint, originEnd: point, originStart: this.mouseData.originmouseDownPoint })
       this.canvas.removeEventListener("mouseup", canvasMouseUp);
       this.canvas.removeEventListener("mousemove", canvasMouseMove);
       this.dispatchGraphicEvent("canvasDispatch:Mouseup", point);
@@ -415,7 +417,7 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
 
   undo() {
     this.dispatchGraphicEvent("canvasDispatch:UndoSnapShot", undefined);
-    this.reloadCanvas();
+    this.reloadCanvas("draw");
   }
 
   redo() {

@@ -1,12 +1,12 @@
 import { ComputedRef } from "vue";
 import { PixelsBuilder } from "../pixelsBuilder";
-import { LedLayout } from "./LedLayout";
+import { ILedLayoutSaveData, LedLayout } from "./LedLayout";
 import { ILedControllers } from "@/views/index.type";
 import { IAreaCHoose, Point, Value } from "../pixel.type";
-import { LedCanvas } from "./LedCanvas";
+import { ILedCanvasSnapshotInfo, LedCanvas } from "./LedCanvas";
 import { ELineAction } from "../enum";
 import { ElMessage } from "element-plus";
-import { canvasGraphic } from "./graphics";
+import { canvasGraphic, IExportObject } from "./graphics";
 
 export class LedLayoutV2 extends LedLayout implements canvasGraphic {
 
@@ -45,6 +45,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
 
   getLedLinksLists(links: Point[]) {
     let canvas = this.getCanvas();
+    this.snapShot();
     const ids: number[] = [this.ledLayoutSetting.ledSetting.no!];
     for (let i = 0; i < links.length; i++) {
       const pointHashCode = this.getPointHash(links[i].x, links[i].y);
@@ -112,12 +113,12 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
     _(0);
      */
     for (const [_, node] of this.ledCanvasSets) {
-      ((n) => {
-        setTimeout(() => {
-          if (type) n.draw();
-          else n.transform();
-        });
-      })(node);
+      if (type) {
+        node.draw();
+      }
+      else {
+        node.transform();
+      }
     }
   }
 
@@ -148,6 +149,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
       { start: layoutBegin, end: layoutEnd }
     );
     if (start.x < end.x && start.y < end.y) {
+      this.snapShot();
       let links = this.getPointLists(start, end, ELineAction.SINGULAR_ROW_PRIOR, pos);
       links.forEach(point => this.ledCoverMap[this.getPointHash(point.x, point.y)] = 0);
       for (const [_, node] of this.ledCanvasSets) {
@@ -162,7 +164,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
   //删除之前的数据
   clear() {
     const main = document.querySelector("#pixelsBuilderCanvas");
-    for (const [_, node] of this.ledCanvasSets) main?.removeChild(node.canvas);
+    for (const [_, node] of this.ledCanvasSets) node.free();
   }
 
   copyLedArea(areaStart: Point, areaEnd: Point) {
@@ -184,6 +186,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
       y: point.y - this.copyPrototype.begin.y
     }
     if (this.copyPrototype.canvas) {
+      this.snapShot();
       for (let i = 0; i < this.copyPrototype.canvas.length; i++) {
         const leds = this.copyPrototype.canvas[i].points;
         const config = this.loadNextLedLayoutConfig(1);
@@ -226,8 +229,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
     if (this.circuitCopyTarget) {
       const no = this.circuitCopyTarget.target;
       if (this.ledCanvasSets.get(no)) {
-        const main = document.querySelector("#pixelsBuilderCanvas");
-        main?.removeChild(this.ledCanvasSets.get(no)!.canvas);
+        this.ledCanvasSets.get(no)!.free();
         this.ledCanvasSets.delete(no);
       }
       const canvas = new LedCanvas(this.pixelsBuilder, this, no, this.circuitCopyTarget.color);
@@ -237,6 +239,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
       this.ledCanvasSets.set(no, canvas);
       this.dispatch("LedSelected", null, { no: no, size: this.circuitCopyLeds.length });
       this.pixelsBuilder.reloadCanvas("draw");
+      this.snapShot();
     }
   }
 
@@ -255,18 +258,104 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
   }
 
   deleteCanvasLayout(no: number) {
-    const main = document.querySelector("#pixelsBuilderCanvas");
     const canvas = this.ledCanvasSets.get(no);
     if (canvas) {
       const leds = canvas.linkedToArray();
       for (let i = 0; i < leds.length; i++) {
         this.ledCoverMap[this.getPointHash(leds[i].x, leds[i].y)]--;
       }
-      main?.removeChild(canvas.canvas);
+      canvas.free();
       this.ledCanvasSets.delete(no);
       this.dispatch("LedSelected", null, { no: no, size: 0 });
       ElMessage.warning("删除线路" + no + "成功!");
     }
+  }
+
+  export(): IExportObject {
+    return {
+      type: "LedLayout",
+      data: this.saveLedLayoutConfig(),
+      begin: this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.beginPoint)
+    }
+  }
+
+  //保存数据
+  saveLedLayoutConfig(): ILedLayoutSaveData {
+    const ret = {} as ILedLayoutSaveData;
+    let ports = 0, lednum = 0, lines: { lednum: number, bulbs: Point[], no: number, color: string }[] = [];
+    let width = this.width, height = this.height;
+    const start = this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.beginPoint);
+    const diff = { x: start.x, y: start.y };
+    for (const [no, canvas] of this.ledCanvasSets) {
+      if (canvas.ledPoints) {
+        const points = canvas.linkedToArray().map(p => {
+          return { x: p.x - diff.x, y: p.y - diff.y }
+        });
+        ports++, lednum += canvas.ledsize;
+        lines.push({ lednum: canvas.ledsize, bulbs: points, no: no, color: canvas.ledColor });
+      }
+    }
+    ret.width = width, ret.height = height;
+    ret.name = "name", ret.ports = ports;
+    ret.lines = lines, ret.lednum = lednum;
+    ret.type = "dn";
+    return ret;
+  }
+
+  //恢复数据
+  loadLedLayoutConfig(data: ILedLayoutSaveData) {
+    this.dispatch("ClearLedSelected", null, undefined);
+    this.ledCanvasSets.clear();
+    this.ledCoverMap = {};
+    const start = this.pixelsBuilder.cavnasPoint2GridPixelsPoint(this.beginPoint);
+    for (const leds of data.lines) {
+      const points = leds.bulbs.map(p => {
+        return { x: p.x + start.x, y: p.y + start.y }
+      })
+      const no = leds.no;
+      const canvas = new LedCanvas(this.pixelsBuilder, this, no, leds.color);
+      points.map(_ => {
+        canvas.appendPoint(_);
+        const pointHashCode = this.getPointHash(_.x, _.y);
+        this.ledCoverMap[pointHashCode] = (this.ledCoverMap[pointHashCode] ?? 0) + 1;
+      });
+      this.ledCanvasSets.set(no, canvas);
+      canvas.draw();
+      this.dispatch("LedSelected", null, { no: no, size: points.length });
+    }
+  }
+
+  //保存快照
+  snapShot(): void {
+    //保存当前每个画布中所有点的信息
+    const ret: ILedCanvasSnapshotInfo[] = [];
+    for (const [_, node] of this.ledCanvasSets) {
+      ret.push(node.saveSnapshot());
+    }
+    this.ledCanvasSnapshotStack.push(ret);
+  }
+
+  ledCanvasSnapshotStack: ILedCanvasSnapshotInfo[][] = [];
+  //恢复快照
+  undoSnapShot(): void {
+    const data = this.ledCanvasSnapshotStack.pop();
+    if (data) {
+      for (const [_, node] of this.ledCanvasSets) {
+        node.free();
+      }
+      this.ledCanvasSets.clear();
+      this.ledCoverMap = {};
+      for (const cc of data) {
+        const c = new LedCanvas(this.pixelsBuilder, this, cc.info.no, cc.info.color);
+        cc.points.map(_ => {
+          c.appendPoint(_);
+          const pointHashCode = this.getPointHash(_.x, _.y);
+          this.ledCoverMap[pointHashCode] = (this.ledCoverMap[pointHashCode] ?? 0) + 1;
+        });
+        this.ledCanvasSets.set(cc.info.no, c);
+      }
+    }
+    this.pixelsBuilder.reloadCanvas();
   }
 }
 

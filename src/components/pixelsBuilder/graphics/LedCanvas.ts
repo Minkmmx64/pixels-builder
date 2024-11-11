@@ -74,32 +74,38 @@ export class LedCanvas implements canvasGraphic {
     this.canvas.addEventListener("contextmenu", e => { e.preventDefault(); this.pixelsBuilder.canvas.dispatchEvent(new MouseEvent("contextmenu", e)) });
   }
 
+  drawTimeOut = null as unknown as NodeJS.Timeout;
   draw() {
-    this.toLocalCanvas();
-    const ctx = this.ctx;
-    ctx.scale(this.pixelsBuilder.transform.scale, this.pixelsBuilder.transform.scale);
-    const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
-    const space = 0.8;
-    requestAnimationFrame(() => {
-      ctx.beginPath();
-      ctx.fillStyle = this.ledColor;
-      const ledPoints = this.linkedToArray();
-      for (let i = 0; i < ledPoints.length; i++) {
-        const X = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(ledPoints[i]);
-        const Y = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(this.offset);
-        const begin = this.pixelsBuilder.mathUtils.div(X, Y);
-        const rect = grid - 2 * grid * (1 - space);
-        ctx.fillRect(begin.x + grid * (1 - space), begin.y + grid * (1 - space), rect, rect);
-        // const text = '' + (i + 1);
-        // ctx.font = `${Math.floor(grid * 0.66)}px serif`;
-        // const { width, actualBoundingBoxAscent, actualBoundingBoxDescent } = ctx.measureText(text);
-        // const height = Math.floor(actualBoundingBoxAscent + actualBoundingBoxDescent);
-        // ctx.fillStyle = "#000000";
-        // ctx.fillText(text, Math.floor(begin.x + width / 2), Math.floor(begin.y + height * 1.5 + 2));
-      }
-      ctx.fill();
-      ctx.closePath();
-    });
+    if (this.drawTimeOut) {
+      clearTimeout(this.drawTimeOut);
+    }
+    this.drawTimeOut = setTimeout(() => {
+      this.toLocalCanvas();
+      const ctx = this.ctx;
+      ctx.scale(this.pixelsBuilder.transform.scale, this.pixelsBuilder.transform.scale);
+      const grid = this.pixelsBuilder.BasicAttribute.GRID_STEP_SIZE;
+      const space = 0.8;
+      requestAnimationFrame(() => {
+        ctx.beginPath();
+        ctx.fillStyle = this.ledColor;
+        const ledPoints = this.linkedToArray();
+        for (let i = 0; i < ledPoints.length; i++) {
+          const X = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(ledPoints[i]);
+          const Y = this.pixelsBuilder.gridPixelsPoint2CanvasPoint(this.offset);
+          const begin = this.pixelsBuilder.mathUtils.div(X, Y);
+          const rect = grid - 2 * grid * (1 - space);
+          ctx.fillRect(begin.x + grid * (1 - space), begin.y + grid * (1 - space), rect, rect);
+          // const text = '' + (i + 1);
+          // ctx.font = `${Math.floor(grid * 0.66)}px serif`;
+          // const { width, actualBoundingBoxAscent, actualBoundingBoxDescent } = ctx.measureText(text);
+          // const height = Math.floor(actualBoundingBoxAscent + actualBoundingBoxDescent);
+          // ctx.fillStyle = "#000000";
+          // ctx.fillText(text, Math.floor(begin.x + width / 2), Math.floor(begin.y + height * 1.5 + 2));
+        }
+        ctx.fill();
+        ctx.closePath();
+      });
+    }, 10);
   }
 
   linkedToArray() {
@@ -122,10 +128,15 @@ export class LedCanvas implements canvasGraphic {
     this.ledsize++;
   }
 
+  transformTimeOut = null as unknown as NodeJS.Timeout;
   transform() {
-    const { begin, end } = this.pixelsBuilder.mathUtils.EncloseMiniPointsRect(this.linkedToArray());
-    const leftTop = this.pixelsBuilder.canvasPoint2RealPoint(this.pixelsBuilder.gridPixelsPoint2CanvasPoint(begin));
-    this.canvas.style.left = leftTop.x + "px", this.canvas.style.top = leftTop.y + "px";
+    if (this.transformTimeOut) clearTimeout(this.transformTimeOut);
+    this.transformTimeOut = setTimeout(() => {
+      const { begin, end } = this.pixelsBuilder.mathUtils.EncloseMiniPointsRect(this.linkedToArray());
+      const leftTop = this.pixelsBuilder.canvasPoint2RealPoint(this.pixelsBuilder.gridPixelsPoint2CanvasPoint(begin));
+      this.canvas.style.left = leftTop.x + "px", this.canvas.style.top = leftTop.y + "px";
+    });
+
   }
 
   toLocalCanvas() {
@@ -212,4 +223,24 @@ export class LedCanvas implements canvasGraphic {
     const top = parseFloat(this.canvas.style.top.replace("px", ""));
     return { left, top };
   }
+
+  saveSnapshot(): ILedCanvasSnapshotInfo {
+    return {
+      info: { no: this.ledNo, color: this.ledColor },
+      points: JSON.parse(JSON.stringify(this.linkedToArray()))
+    }
+  }
+
+  free() {
+    const main = document.querySelector("#pixelsBuilderCanvas");
+    main?.removeChild(this.canvas);
+  }
+}
+
+export interface ILedCanvasSnapshotInfo {
+  info: {
+    no: number;
+    color: string
+  }
+  points: Point[]
 }

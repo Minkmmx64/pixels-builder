@@ -26,7 +26,7 @@ export interface IPixelsEventListener {
   /**
    * 区域结束，返回区域坐标
    */
-  ToggleAreaEnd: { start: IRealisticPoint, end: IRealisticPoint }
+  ToggleAreaEnd: { start: IRealisticPoint, end: IRealisticPoint, originStart: IRealisticPoint, originEnd: IRealisticPoint }
   /**
   * 画布移动
   */

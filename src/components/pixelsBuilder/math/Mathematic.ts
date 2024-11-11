@@ -310,4 +310,8 @@ export class Mathematic {
       y: X.y + Y.y
     }
   }
+  //Manhattan距离
+  Manhattan(X: Point, Y: Point): number {
+    return Math.abs(X.x - Y.x) + Math.abs(X.y - Y.y)
+  }
 }

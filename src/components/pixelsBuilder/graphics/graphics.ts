@@ -48,4 +48,5 @@ export type GraphicTools = IGraphic & IFunctionInterFace<IGraphicPatch> & IGraph
 export interface IExportObject {
   type: IGraphicSets,
   data: Record<string, Value>;
+  [key: string]: Value;
 }

@@ -130,7 +130,7 @@ const tools: Ref<ITools[]> = ref([
   { label: "添加图片", code: ETools.TOOLS_ADD_IMAGE, icon: require("@/assets/image.png") },
   { label: "复制led选区", code: ETools.TOOLS_COPY_AREA, icon: require("@/assets/copy_area.png") },
   { label: "粘贴led选区", code: ETools.TOOLS_PASTE_AREA, icon: require("@/assets/paste.png") },
-  // { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
+  { label: "撤回", code: ETools.TOOLS_WITHDRAW, icon: require("@/assets/withdraw.png") },
   // { label: "取消撤回", code: ETools.TOOLS_RE_WITHDRAW, icon: require("@/assets/re_withdraw.png") },
   { label: "刪除区域", code: ETools.TOOLS_DELETE_AREA, icon: require("@/assets/delete.png") },
 ]);
@@ -157,7 +157,8 @@ const toggleMode = (e: ETools) => {
       pixelsBuilder.value?.undo();
       break;
     case ETools.TOOLS_RE_WITHDRAW:
-      pixelsBuilder.value?.redo();
+      //pixelsBuilder.value?.redo();
+      ElMessage.error("暂无此功能");
       break;
     case ETools.TOOLS_ADD_IMAGE:
       if (!ledLayout.value) {
@@ -213,6 +214,14 @@ const handleCopyCorcuit = () => {
   ledLayout.value?.onCurcuitCopy();
 }
 const createLedLayout = (param: { width: number, height: number }) => {
+  if (pixelsBuilder.value) {
+    pixelsBuilder.value.graphics = [];
+    pixelsBuilder.value.reloadCanvas();
+    pixelsBuilder.value.transform = {
+      scale: 1,
+      translate: { x: 0, y: 0 }
+    }
+  }
   if (ledLayout.value) {
     ledLayout.value.clear();
   }
@@ -256,7 +265,6 @@ const initLedController = (leds: number, star: number) => {
 }
 //导入
 const ledImport = () => {
-  return ElMessage.error("功能关闭");
   let options: Electron.OpenDialogOptions = {
     filters: [{ extensions: ["tar"], name: ".tar" }]
   }
@@ -265,16 +273,17 @@ const ledImport = () => {
     if (res[0]) {
       try {
         pixelsBuilder.value!.graphics = [];
-        pixelsBuilder.value!.transform.translate = { x: 0, y: 0 }
-        pixelsBuilder.value!.transform.scale = 4;
-        const data = await window.IPC.invoke("ledImport", res[0]) as IExportObject[];
-        const ledLayoutData = data.find(_ => _.type === "LedLayout");
-        pixelsBuilder.value?.import(data.filter(_ => _.type !== "LedLayout"));
+        const { data, transform } = (await window.IPC.invoke("ledImport", res[0]));
+        const ledLayoutData = (data as IExportObject[]).find(_ => _.type === "LedLayout");
         if (ledLayoutData) {
           createLedLayout({ width: ledLayoutData.data.width, height: ledLayoutData.data.height });
+          pixelsBuilder.value!.transform = transform
           ledLayout.value?.loadLedLayoutConfig(ledLayoutData.data as ILedLayoutSaveData);
+          pixelsBuilder.value?.import((data as IExportObject[]).filter(_ => _.type !== "LedLayout"));
         }
+        pixelsBuilder.value?.reloadCanvas();
       } catch (error) {
+        console.log(error);
         ElMessage.error("文件格式错误");
       }
     }
@@ -295,8 +304,9 @@ const exportDest = ref("");
 const chooseExportDest = () => window.IPC.send("dirSelect", { title: "选择导出目录", eventReg: "selectExportDir" });
 window.IPC?.on("selectExportDir", async (_, dirPath) => exportDest.value = dirPath);
 const ledExport = async () => {
-  return ElMessage.error("功能关闭");
+  canvasLoading.value = true;
   const data = await pixelsBuilder.value?.export();
+  canvasLoading.value = false;
   if (!data?.length) {
     ElMessage.error("请创建ledLayout");
     return;
@@ -316,7 +326,7 @@ const handleExportConfig = async () => {
         ledLayoutData.data.name = exportForm.value.name;
         ledLayoutData.data.description = exportForm.value.description;
       }
-      await window.IPC.invoke("ledExport", { dest: exportDest.value, data, filename: exportForm.value.filename });
+      await window.IPC.invoke("ledExport", { dest: exportDest.value, data, filename: exportForm.value.filename, transform: JSON.parse(JSON.stringify(pixelsBuilder.value!.transform)) });
       showExportConfig.value = false;
       ElMessage.success("导出成功");
     }
@@ -367,7 +377,7 @@ onMounted(() => {
     pixelsBuilder.value.on("ToggleMove", translate => {
       info.value.translate = { x: Math.round(translate.x), y: Math.round(translate.y) };
     });
-    pixelsBuilder.value.on("ToggleAreaEnd", ({ start, end }) => {
+    pixelsBuilder.value.on("ToggleAreaEnd", ({ start, end, originEnd, originStart }) => {
       let st = pixelsBuilder.value!.mathUtils.pointRelaPos(start, end);
       let areaBegin !: Point, areaEnd !: Point;
       switch (st) {
@@ -388,13 +398,25 @@ onMounted(() => {
           break;
         }
       }
-      const sx = Math.round(areaBegin.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), sy = Math.round(areaBegin.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
-      const ex = Math.round(areaEnd.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), ey = Math.round(areaEnd.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
+      let sx = Math.round(areaBegin.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), sy = Math.round(areaBegin.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
+      let ex = Math.round(areaEnd.x / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE), ey = Math.round(areaEnd.y / pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE);
       if (mode.value === ETools.TOOLS_ARROW) {
-        pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaSelect", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
+        if (pixelsBuilder.value!.mathUtils.Manhattan(originStart, originEnd) < pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE) {
+          const d = pixelsBuilder.value!.cavnasPoint2GridPixelsPoint(pixelsBuilder.value!.realPoint2GridAlignCanvasFloorPoint(originEnd));
+          sx = d.x, sy = d.y;
+          ex = sx + 1, ey = sy + 1;
+          pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaSelect", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
+        }
+        else pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaSelect", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
       }
       else if (mode.value === ETools.TOOLS_DELETE_AREA) {
-        pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaDelete", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
+        if (pixelsBuilder.value!.mathUtils.Manhattan(originStart, originEnd) < pixelsBuilder.value!.BasicAttribute.GRID_STEP_SIZE) {
+          const d = pixelsBuilder.value!.cavnasPoint2GridPixelsPoint(pixelsBuilder.value!.realPoint2GridAlignCanvasFloorPoint(originEnd));
+          sx = d.x, sy = d.y;
+          ex = sx + 1, ey = sy + 1;
+          pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaDelete", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
+        }
+        else pixelsBuilder.value!.dispatchGraphicEvent("canvasDispatch:AreaDelete", { pos: st, areaStart: { x: sx, y: sy }, areaEnd: { x: ex, y: ey } });
       }
       else if (mode.value === ETools.TOOLS_COPY_AREA) {
         ledLayout.value?.copyLedArea({ x: sx, y: sy }, { x: ex, y: ey });
