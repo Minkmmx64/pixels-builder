@@ -232,8 +232,10 @@ export class LedCanvas implements canvasGraphic {
   }
 
   free() {
-    const main = document.querySelector("#pixelsBuilderCanvas");
-    main?.removeChild(this.canvas);
+    try {
+      const main = document.querySelector("#pixelsBuilderCanvas");
+      main?.removeChild(this.canvas);
+    } catch (error) { }
   }
 }
 

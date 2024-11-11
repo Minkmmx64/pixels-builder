@@ -7,6 +7,7 @@ import { Listener } from "./pixelsListener";
 import { firstLetterToLower } from "./utils/utils";
 import { DragItem, EGraphicMoveTools } from "./graphics/dragItem";
 import { PixelsBuilder } from "./pixelsBuilder";
+import { ElMessage } from "element-plus";
 
 // <typename T = 宿主容器事件 & graphic 图形派发事件 />
 export class CanvasSystem extends Listener<IPixelsEventListener> {
@@ -407,10 +408,12 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
 
       if (e.code === "KeyZ" && e.ctrlKey) {
         this.undo();
+        e.preventDefault();
       } else if (e.code === "KeyY" && e.ctrlKey) {
         this.redo();
       } else if (e.code === "KeyS" && e.ctrlKey) {
-        //ElMessage.success("保存成功");
+        ElMessage.success("保存成功");
+        e.preventDefault();
       }
     })
   }

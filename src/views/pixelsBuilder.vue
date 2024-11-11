@@ -253,7 +253,8 @@ const initLedController = (leds: number, star: number) => {
     let n = Math.min(leds, 10);
     let ret = [];
     for (let i = star; i < star + n; i++) {
-      const color = ["#ff0000", "#00ff00", "#0000ff"][i % 3];
+      const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffffff", "#FFEB3B", "#E040FB", "#F97F51", "#00cec9", "#00d8d6"]
+      const color = colors[i % colors.length];
       const pixels = 0;
       const fenController = i + 1;
       const no = i + 1;

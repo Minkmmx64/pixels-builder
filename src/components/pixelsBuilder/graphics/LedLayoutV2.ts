@@ -228,8 +228,12 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
   onCurcuitCopy() {
     if (this.circuitCopyTarget) {
       const no = this.circuitCopyTarget.target;
-      if (this.ledCanvasSets.get(no)) {
-        this.ledCanvasSets.get(no)!.free();
+      const _canvas = this.ledCanvasSets.get(no);
+      if (_canvas) {
+        _canvas.free();
+        for (const point of _canvas.linkedToArray()) {
+          this.ledCoverMap[this.getPointHash(point.x, point.y)]--;
+        }
         this.ledCanvasSets.delete(no);
       }
       const canvas = new LedCanvas(this.pixelsBuilder, this, no, this.circuitCopyTarget.color);
@@ -338,6 +342,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
   ledCanvasSnapshotStack: ILedCanvasSnapshotInfo[][] = [];
   //恢复快照
   undoSnapShot(): void {
+    this.dispatch("ClearLedSelected", null, undefined);
     const data = this.ledCanvasSnapshotStack.pop();
     if (data) {
       for (const [_, node] of this.ledCanvasSets) {
@@ -352,6 +357,7 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
           const pointHashCode = this.getPointHash(_.x, _.y);
           this.ledCoverMap[pointHashCode] = (this.ledCoverMap[pointHashCode] ?? 0) + 1;
         });
+        this.dispatch("LedSelected", null, { no: cc.info.no, size: cc.points.length });
         this.ledCanvasSets.set(cc.info.no, c);
       }
     }
