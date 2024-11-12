@@ -327,7 +327,7 @@ const handleExportConfig = async () => {
         ledLayoutData.data.name = exportForm.value.name;
         ledLayoutData.data.description = exportForm.value.description;
       }
-      await window.IPC.invoke("ledExport", { dest: exportDest.value, data, filename: exportForm.value.filename, transform: JSON.parse(JSON.stringify(pixelsBuilder.value!.transform)) });
+      await window.IPC.invoke("ledExport", { dest: exportDest.value, data, filename: exportForm.value.filename, transform: JSON.parse(JSON.stringify(pixelsBuilder.value!.getTransform())) });
       showExportConfig.value = false;
       ElMessage.success("导出成功");
     }

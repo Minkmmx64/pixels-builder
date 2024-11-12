@@ -70,6 +70,22 @@ export class CanvasSystem extends Listener<IPixelsEventListener> {
     this.initGraphics();
   }
 
+  getTransform(): {
+    scale: number;
+    translate: {
+      x: number;
+      y: number;
+    };
+  } {
+    return {
+      scale: parseFloat(this.transform.scale.toFixed(2)),
+      translate: {
+        x: parseFloat(this.transform.translate.x.toFixed(2)),
+        y: parseFloat(this.transform.translate.y.toFixed(2)),
+      }
+    }
+  }
+
   //绘制网格
   initGridSystem() {
     const { width } = this.canvas.getBoundingClientRect();

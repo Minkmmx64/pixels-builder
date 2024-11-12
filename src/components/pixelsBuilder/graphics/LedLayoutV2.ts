@@ -1,4 +1,4 @@
-import { ComputedRef } from "vue";
+import { ComputedRef, unref } from "vue";
 import { PixelsBuilder } from "../pixelsBuilder";
 import { ILedLayoutSaveData, LedLayout } from "./LedLayout";
 import { ILedControllers } from "@/views/index.type";
@@ -317,7 +317,8 @@ export class LedLayoutV2 extends LedLayout implements canvasGraphic {
         return { x: p.x + start.x, y: p.y + start.y }
       })
       const no = leds.no;
-      const canvas = new LedCanvas(this.pixelsBuilder, this, no, leds.color);
+      const ledControllers = unref(this.LedLayoutConfigRef);
+      const canvas = new LedCanvas(this.pixelsBuilder, this, no, ledControllers[no - 1].color);
       points.map(_ => {
         canvas.appendPoint(_);
         const pointHashCode = this.getPointHash(_.x, _.y);
